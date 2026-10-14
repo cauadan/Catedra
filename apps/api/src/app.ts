@@ -5,6 +5,7 @@ import { authRouter } from './routes/auth.routes.js';
 import { subjectRouter } from './routes/subject.routes.js';
 import { topicRouter } from './routes/topic.routes.js';
 import { plannedSessionRouter } from './routes/planned-session.routes.js';
+import { studySessionRouter } from './routes/study-session.routes.js';
 
 /**
  * Instância da aplicação Express (apps/api)
@@ -40,6 +41,9 @@ app.use('/api/topics', topicRouter);
 
 // Rotas de Agenda e Planejamento (Fase 3)
 app.use('/api/planned-sessions', plannedSessionRouter);
+
+// Rotas de Execução do Estudo e Timer (Fases 4 e 5)
+app.use('/api/study-sessions', studySessionRouter);
 
 // Middleware de tratamento de rotas não encontradas (404)
 app.use((req: Request, res: Response) => {
