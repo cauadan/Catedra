@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { authRouter } from './routes/auth.routes.js';
 import { subjectRouter } from './routes/subject.routes.js';
 import { topicRouter } from './routes/topic.routes.js';
+import { plannedSessionRouter } from './routes/planned-session.routes.js';
 
 /**
  * Instância da aplicação Express (apps/api)
@@ -36,6 +37,9 @@ app.use('/api/auth', authRouter);
 // Rotas de Matérias (Marco 3)
 app.use('/api/subjects', subjectRouter);
 app.use('/api/topics', topicRouter);
+
+// Rotas de Agenda e Planejamento (Fase 3)
+app.use('/api/planned-sessions', plannedSessionRouter);
 
 // Middleware de tratamento de rotas não encontradas (404)
 app.use((req: Request, res: Response) => {
