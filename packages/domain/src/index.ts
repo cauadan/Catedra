@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 export * from './calendar.js';
 export * from './planning.js';
+export * from './summary.js';
 
 // ==============================================================================
 // 1. ESQUEMAS DE AUTENTICAÇÃO E USUÁRIO
