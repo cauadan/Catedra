@@ -40,3 +40,14 @@ export function formatErrorResponse(
 
   return envelope;
 }
+export class AppError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    public readonly code: ApiErrorCode | 'BAD_REQUEST',
+    message: string,
+    public readonly details?: ApiErrorDetail[]
+  ) {
+    super(message);
+    this.name = 'AppError';
+  }
+}
