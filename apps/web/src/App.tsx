@@ -8,6 +8,7 @@ import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { PlaceholderModule } from './pages/PlaceholderModule';
 import { Subjects } from './pages/Subjects';
+import { Agenda } from './pages/Agenda';
 
 /**
  * Roteamento e orquestração de páginas do frontend.
@@ -34,12 +35,7 @@ function AppRoutes() {
         ) : path === '/subjects' ? (
           <Subjects />
         ) : path === '/agenda' ? (
-          <PlaceholderModule
-            id="agenda"
-            title="Agenda e Planejamento"
-            phase="Fase 3"
-            description="Organização do calendário de estudos semanal e sessões planejadas."
-          />
+          <Agenda />
         ) : path === '/timer' ? (
           <PlaceholderModule
             id="timer"
