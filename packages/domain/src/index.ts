@@ -10,6 +10,8 @@ export * from './calendar.js';
 export * from './planning.js';
 export * from './summary.js';
 export * from './timer.js';
+export * from './practice.js';
+export * from './study-session.js';
 
 // ==============================================================================
 // 1. ESQUEMAS DE AUTENTICAÇÃO E USUÁRIO
@@ -385,31 +387,6 @@ export function resolveTopicMove(
 // ==============================================================================
 
 export const MIN_QUESTIONS_FOR_RATING = 10;
-
-/**
- * Calcula a taxa de acerto (aproveitamento) em questões como porcentagem (0 a 100).
- */
-export function calculateAccuracy(correct: number, total: number): number {
-  if (total <= 0) return 0;
-  return Math.min(100, Math.max(0, (correct / total) * 100));
-}
-
-/**
- * Converte o nível de autoavaliação qualitativo para valor numérico (0 a 100).
- * Não entendi = 0, Parcialmente = 33, Entendi = 67, Dominei = 100.
- */
-export function mapUnderstandingToScore(level: 'NONE' | 'PARTIAL' | 'GOOD' | 'MASTERED'): number {
-  switch (level) {
-    case 'NONE':
-      return 0;
-    case 'PARTIAL':
-      return 33;
-    case 'GOOD':
-      return 67;
-    case 'MASTERED':
-      return 100;
-  }
-}
 
 /**
  * Calcula a nota final do assunto:

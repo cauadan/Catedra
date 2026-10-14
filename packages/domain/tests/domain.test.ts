@@ -129,7 +129,7 @@ describe('Validações do Pacote Domain (@estudos/domain)', () => {
     it('deve calcular taxa de acerto corretamente', () => {
       expect(calculateAccuracy(18, 20)).toBe(90);
       expect(calculateAccuracy(0, 10)).toBe(0);
-      expect(calculateAccuracy(0, 0)).toBe(0);
+      expect(calculateAccuracy(0, 0)).toBeNull();
     });
 
     it('deve mapear autoavaliação qualitativa', () => {
