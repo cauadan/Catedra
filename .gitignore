@@ -1,0 +1,50 @@
+# Dependências e diretórios de pacotes
+node_modules/
+.pnp
+.pnp.js
+
+# Saídas de compilação e empacotamento
+dist/
+dist-types/
+build/
+*.tsbuildinfo
+
+# Arquivos de cobertura e testes
+coverage/
+.nyc_output/
+
+# Logs e arquivos de depuração
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Variáveis de ambiente locais (sensíveis)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Arquivos temporários do sistema operacional
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Configurações locais de IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Dados do banco de dados local (se persistido fora do volume Docker)
+postgres_data/

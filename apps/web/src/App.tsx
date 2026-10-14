@@ -1,0 +1,92 @@
+import React from 'react';
+import { RouterProvider, useRouter, Redirect } from './contexts/RouterContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { Shell } from './components/layout/Shell';
+import { Login } from './pages/Login';
+import { Register } from './pages/Register';
+import { Dashboard } from './pages/Dashboard';
+import { PlaceholderModule } from './pages/PlaceholderModule';
+import { Subjects } from './pages/Subjects';
+
+/**
+ * Roteamento e orquestração de páginas do frontend.
+ */
+function AppRoutes() {
+  const { path } = useRouter();
+  const { isAuthenticated } = useAuth();
+
+  // Rotas públicas de autenticação (redirecionam se já logado)
+  if (path === '/login') {
+    return isAuthenticated ? <Redirect to="/dashboard" /> : <Login />;
+  }
+
+  if (path === '/register') {
+    return isAuthenticated ? <Redirect to="/dashboard" /> : <Register />;
+  }
+
+  // Rotas privadas protegidas pelo Shell e ProtectedRoute
+  return (
+    <ProtectedRoute>
+      <Shell>
+        {path === '/' || path === '/dashboard' ? (
+          <Dashboard />
+        ) : path === '/subjects' ? (
+          <Subjects />
+        ) : path === '/agenda' ? (
+          <PlaceholderModule
+            id="agenda"
+            title="Agenda e Planejamento"
+            phase="Fase 3"
+            description="Organização do calendário de estudos semanal e sessões planejadas."
+          />
+        ) : path === '/timer' ? (
+          <PlaceholderModule
+            id="timer"
+            title="Cronômetro de Estudo"
+            phase="Fase 3"
+            description="Controle e acompanhamento de sessões com foco e tempo líquido."
+          />
+        ) : path === '/goals' ? (
+          <PlaceholderModule
+            id="goals"
+            title="Metas de Estudo"
+            phase="Fase 4"
+            description="Acompanhamento de metas quantitativas e qualitativas de estudo."
+          />
+        ) : path === '/stats' ? (
+          <PlaceholderModule
+            id="stats"
+            title="Desempenho e Estatísticas"
+            phase="Fase 4"
+            description="Análise e relatórios de rendimento, notas e classificações."
+          />
+        ) : path === '/observatory' ? (
+          <PlaceholderModule
+            id="observatory"
+            title="Observatório Semanal"
+            phase="Fase 5"
+            description="Visão abrangente e insights consolidados das semanas anteriores."
+          />
+        ) : (
+          <Redirect to="/dashboard" />
+        )}
+      </Shell>
+    </ProtectedRoute>
+  );
+}
+
+/**
+ * Componente raiz com Provedores de Roteamento e Autenticação.
+ */
+export function App() {
+  return (
+    <RouterProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </RouterProvider>
+  );
+}
+
+export default App;

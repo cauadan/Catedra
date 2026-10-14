@@ -1,0 +1,32 @@
+{
+  "name": "estudos",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"API,WEB\" -c \"blue,green\" \"npm run dev --workspace=@estudos/api\" \"npm run dev --workspace=@estudos/web\"",
+    "dev:api": "npm run dev --workspace=@estudos/api",
+    "dev:web": "npm run dev --workspace=@estudos/web",
+    "build": "npm run build --workspace=@estudos/domain && npm run build --workspace=@estudos/api && npm run build --workspace=@estudos/web",
+    "typecheck": "tsc -b",
+    "typecheck:workspaces": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:workspaces": "npm run test --workspaces --if-present",
+    "test:e2e": "vitest run --config tests/e2e/vitest.config.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:wait": "node scripts/wait-for-db.mjs",
+    "db:migrate": "npm run db:migrate --workspace=@estudos/api",
+    "db:deploy": "npm run db:deploy --workspace=@estudos/api",
+    "db:generate": "npm run db:generate --workspace=@estudos/api",
+    "db:seed": "npm run db:seed --workspace=@estudos/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}

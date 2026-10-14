@@ -1,0 +1,347 @@
+// ==============================================================================
+// Prisma Schema - Plataforma de Gestão e Análise de Estudos
+// Baseado integralmente na Seção 6 de 01-contexto-do-projeto.md
+// ==============================================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ------------------------------------------------------------------------------
+// ENUMS (10 Enums Conforme Especificação da Seção 6)
+// ------------------------------------------------------------------------------
+
+enum PlannedSessionStatus {
+  PLANNED
+  DONE
+  SKIPPED
+  RESCHEDULED
+}
+
+enum BlockKind {
+  REVIEW
+  NEW_CONTENT
+  PRACTICE
+}
+
+enum StudySessionStatus {
+  IN_PROGRESS
+  FINISHED
+  CANCELLED
+}
+
+enum SessionEventType {
+  BLOCK_START
+  PAUSE
+  RESUME
+  DISTRACTION_START
+  DISTRACTION_END
+  DISTRACTION_DECLARED
+  BLOCK_FINISH
+  SESSION_FINISH
+  SESSION_CANCEL
+}
+
+enum UnderstandingLevel {
+  NONE
+  PARTIAL
+  GOOD
+  MASTERED
+}
+
+enum FocusLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DifficultyLevel {
+  EASY
+  NORMAL
+  HARD
+}
+
+enum GoalKind {
+  EFFORT
+  RESULT
+}
+
+enum GoalMetric {
+  EFFECTIVE_MINUTES
+  QUESTIONS
+  TOPICS_COMPLETED
+  REVIEWS
+  ACCURACY
+}
+
+enum GoalPeriod {
+  DAY
+  WEEK
+  MONTH
+}
+
+// ------------------------------------------------------------------------------
+// MODELOS (11 Modelos Conforme Seção 6)
+// ------------------------------------------------------------------------------
+
+/// Modelo de Usuário: raiz de autenticação e multi-tenancy
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  name           String
+  password_hash  String
+  timezone       String   @default("America/Sao_Paulo")
+  week_starts_on String   @default("MONDAY")
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  subjects            Subject[]
+  topics              Topic[]
+  planned_sessions    PlannedSession[]
+  planned_blocks      PlannedBlock[]
+  study_sessions      StudySession[]
+  session_blocks      SessionBlock[]
+  session_events      SessionEvent[]
+  practice_records    PracticeRecord[]
+  session_evaluations SessionEvaluation[]
+  goals               Goal[]
+
+  @@map("users")
+}
+
+/// Matéria (Subject): agrupador de alto nível de assuntos de estudo
+model Subject {
+  id         String   @id @default(uuid())
+  user_id    String
+  name       String
+  color      String
+  archived   Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  topics           Topic[]
+  planned_sessions PlannedSession[]
+  goals            Goal[]
+
+  @@index([user_id])
+  @@map("subjects")
+}
+
+/// Assunto (Topic): hierarquia de árvore com profundidade livre via parent_id
+model Topic {
+  id         String   @id @default(uuid())
+  user_id    String
+  subject_id String
+  parent_id  String?
+  name       String
+  archived   Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subject          Subject          @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+  parent           Topic?           @relation("TopicHierarchy", fields: [parent_id], references: [id], onDelete: Cascade)
+  children         Topic[]          @relation("TopicHierarchy")
+  planned_sessions PlannedSession[]
+  study_sessions   StudySession[]
+  practice_records PracticeRecord[]
+  goals            Goal[]
+
+  @@index([user_id])
+  @@index([subject_id])
+  @@index([parent_id])
+  @@map("topics")
+}
+
+/// Sessão Planejada: agendamento prévio com metas de tempo e prioridade
+model PlannedSession {
+  id                  String               @id @default(uuid())
+  user_id             String
+  subject_id          String
+  topic_id            String
+  scheduled_start     DateTime
+  planned_minutes     Int
+  priority            String               @default("MEDIUM")
+  activity_type       String?
+  notes               String?
+  status              PlannedSessionStatus @default(PLANNED)
+  rescheduled_from_id String?
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @updatedAt
+
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subject          Subject          @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+  topic            Topic            @relation(fields: [topic_id], references: [id], onDelete: Restrict)
+  rescheduled_from PlannedSession?  @relation("PlannedSessionReschedule", fields: [rescheduled_from_id], references: [id], onDelete: SetNull)
+  rescheduled_to   PlannedSession[] @relation("PlannedSessionReschedule")
+  planned_blocks   PlannedBlock[]
+  study_sessions   StudySession[]
+
+  @@index([user_id])
+  @@index([subject_id])
+  @@index([topic_id])
+  @@index([scheduled_start])
+  @@map("planned_sessions")
+}
+
+/// Bloco Planejado: divisão interna da sessão planejada (revisão, conteúdo, prática)
+model PlannedBlock {
+  id                 String    @id @default(uuid())
+  user_id            String
+  planned_session_id String
+  kind               BlockKind
+  planned_minutes    Int
+  position           Int
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  user            User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  planned_session PlannedSession @relation(fields: [planned_session_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([planned_session_id])
+  @@map("planned_blocks")
+}
+
+/// Sessão de Estudo Executada: execução real do cronômetro/timer
+model StudySession {
+  id                 String             @id @default(uuid())
+  user_id            String
+  planned_session_id String?
+  topic_id           String
+  started_at         DateTime           @default(now())
+  ended_at           DateTime?
+  status             StudySessionStatus @default(IN_PROGRESS)
+  created_at         DateTime           @default(now())
+  updated_at         DateTime           @updatedAt
+
+  user             User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  planned_session  PlannedSession?    @relation(fields: [planned_session_id], references: [id], onDelete: SetNull)
+  topic            Topic              @relation(fields: [topic_id], references: [id], onDelete: Restrict)
+  session_blocks   SessionBlock[]
+  session_events   SessionEvent[]
+  practice_records PracticeRecord[]
+  evaluation       SessionEvaluation?
+
+  @@index([user_id])
+  @@index([topic_id])
+  @@index([planned_session_id])
+  @@index([started_at])
+  @@map("study_sessions")
+}
+
+/// Bloco de Sessão Executado: etapa real executada dentro da sessão
+model SessionBlock {
+  id               String    @id @default(uuid())
+  user_id          String
+  study_session_id String
+  kind             BlockKind
+  planned_minutes  Int
+  position         Int
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  study_session    StudySession     @relation(fields: [study_session_id], references: [id], onDelete: Cascade)
+  session_events   SessionEvent[]
+  practice_records PracticeRecord[]
+
+  @@index([user_id])
+  @@index([study_session_id])
+  @@map("session_blocks")
+}
+
+/// Evento do Timer: registra cada transição de estado da máquina do timer
+model SessionEvent {
+  id               String           @id @default(uuid())
+  user_id          String
+  study_session_id String
+  block_id         String?
+  type             SessionEventType
+  occurred_at      DateTime         @default(now())
+  declared_seconds Int?
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+
+  user          User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  study_session StudySession  @relation(fields: [study_session_id], references: [id], onDelete: Cascade)
+  block         SessionBlock? @relation(fields: [block_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([study_session_id])
+  @@index([block_id])
+  @@index([occurred_at])
+  @@map("session_events")
+}
+
+/// Registro de Questões Praticadas: guarda questões totais e corretas
+model PracticeRecord {
+  id               String   @id @default(uuid())
+  user_id          String
+  study_session_id String
+  block_id         String?
+  topic_id         String
+  questions        Int
+  correct          Int
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  user          User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  study_session StudySession  @relation(fields: [study_session_id], references: [id], onDelete: Cascade)
+  block         SessionBlock? @relation(fields: [block_id], references: [id], onDelete: SetNull)
+  topic         Topic         @relation(fields: [topic_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id])
+  @@index([study_session_id])
+  @@index([topic_id])
+  @@map("practice_records")
+}
+
+/// Avaliação Qualitativa da Sessão: relação 1:1 estrita com StudySession
+model SessionEvaluation {
+  id               String             @id @default(uuid())
+  user_id          String
+  study_session_id String             @unique
+  understanding    UnderstandingLevel
+  focus            FocusLevel
+  difficulty       DifficultyLevel
+  notes            String?
+  created_at       DateTime           @default(now())
+  updated_at       DateTime           @updatedAt
+
+  user          User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  study_session StudySession @relation(fields: [study_session_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("session_evaluations")
+}
+
+/// Metas de Estudo: esforço ou resultado por período no fuso do usuário
+model Goal {
+  id                      String     @id @default(uuid())
+  user_id                 String
+  kind                    GoalKind
+  metric                  GoalMetric
+  period                  GoalPeriod
+  period_start_local_date String
+  target_value            Float
+  subject_id              String?
+  topic_id                String?
+  created_at              DateTime   @default(now())
+  updated_at              DateTime   @updatedAt
+
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subject Subject? @relation(fields: [subject_id], references: [id], onDelete: SetNull)
+  topic   Topic?   @relation(fields: [topic_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([subject_id])
+  @@index([topic_id])
+  @@map("goals")
+}
