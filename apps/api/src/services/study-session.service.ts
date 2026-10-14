@@ -8,6 +8,11 @@ import {
   SessionEventDTO,
   SessionBlockDTO,
   SessionMetrics,
+  findActiveBlock,
+  findNextBlock,
+  validateBlockTransition,
+  validateDeclaredDistraction,
+  ManualEventType,
 } from '@estudos/domain';
 
 export interface StudySessionView {
@@ -399,5 +404,368 @@ export class StudySessionService {
     }
 
     return toSessionView(session, new Date());
+  }
+
+  /**
+   * POST /api/study-sessions/:id/events
+   */
+  static async recordEvent(
+    userId: string,
+    id: string,
+    type: ManualEventType
+  ): Promise<StudySessionView> {
+    return prisma.$transaction(async (tx) => {
+      const row = await lockSessionForUpdate(tx, userId, id);
+      if (row.status !== 'IN_PROGRESS') {
+        throw new AppError(409, 'SESSION_NOT_IN_PROGRESS', 'A sessão não está em andamento.');
+      }
+
+      const session = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+        },
+      });
+
+      const domainBlocks: SessionBlockDTO[] = session.session_blocks.map((b) => ({
+        id: b.id,
+        kind: b.kind as any,
+        planned_minutes: b.planned_minutes,
+        position: b.position,
+      }));
+
+      const domainEvents: SessionEventDTO[] = session.session_events.map((e) => ({
+        type: e.type as any,
+        block_id: e.block_id,
+        occurred_at: new Date(e.occurred_at),
+        declared_seconds: e.declared_seconds,
+      }));
+
+      const activeBlock = findActiveBlock(domainBlocks, domainEvents);
+      if (!activeBlock) {
+        throw new AppError(409, 'BLOCK_NOT_ACTIVE', 'Nenhuma etapa ativa encontrada nesta sessão.');
+      }
+
+      const activeBlockEvents = domainEvents.filter((e) => e.block_id === activeBlock.id);
+      const tr = validateBlockTransition(activeBlockEvents, type);
+      if (!tr.ok) {
+        throw new AppError(409, 'INVALID_TRANSITION', tr.error);
+      }
+
+      const now = new Date();
+      await tx.sessionEvent.create({
+        data: {
+          user_id: userId,
+          study_session_id: id,
+          block_id: activeBlock.id,
+          type,
+          occurred_at: now,
+        },
+      });
+
+      const fullSession = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+      });
+
+      return toSessionView(fullSession, now);
+    });
+  }
+
+  /**
+   * POST /api/study-sessions/:id/blocks/:blockId/finish
+   */
+  static async finishBlock(
+    userId: string,
+    id: string,
+    blockId: string,
+    declaredMinutes?: number
+  ): Promise<StudySessionView> {
+    return prisma.$transaction(async (tx) => {
+      const row = await lockSessionForUpdate(tx, userId, id);
+      if (row.status !== 'IN_PROGRESS') {
+        throw new AppError(409, 'SESSION_NOT_IN_PROGRESS', 'A sessão não está em andamento.');
+      }
+
+      const session = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+        },
+      });
+
+      const targetBlock = session.session_blocks.find((b) => b.id === blockId);
+      if (!targetBlock) {
+        throw new AppError(404, 'NOT_FOUND', 'Etapa não encontrada nesta sessão.');
+      }
+
+      const domainBlocks: SessionBlockDTO[] = session.session_blocks.map((b) => ({
+        id: b.id,
+        kind: b.kind as any,
+        planned_minutes: b.planned_minutes,
+        position: b.position,
+      }));
+
+      const domainEvents: SessionEventDTO[] = session.session_events.map((e) => ({
+        type: e.type as any,
+        block_id: e.block_id,
+        occurred_at: new Date(e.occurred_at),
+        declared_seconds: e.declared_seconds,
+      }));
+
+      const activeBlock = findActiveBlock(domainBlocks, domainEvents);
+      if (!activeBlock || activeBlock.id !== blockId) {
+        throw new AppError(
+          409,
+          'BLOCK_NOT_ACTIVE',
+          'Esta etapa não é a etapa atualmente ativa da sessão.'
+        );
+      }
+
+      const nextBlock = findNextBlock(domainBlocks, domainEvents);
+      if (!nextBlock) {
+        throw new AppError(
+          409,
+          'LAST_BLOCK',
+          'Use a conclusão da sessão para encerrar a última etapa.'
+        );
+      }
+
+      const now = new Date();
+      const activeBlockEvents = domainEvents.filter((e) => e.block_id === activeBlock.id);
+
+      if (declaredMinutes !== undefined) {
+        const declaredSeconds = declaredMinutes * 60;
+        const valRes = validateDeclaredDistraction(activeBlockEvents, declaredSeconds, now);
+        if (!valRes.ok) {
+          throw new AppError(422, 'DECLARED_DISTRACTION_EXCEEDED', valRes.error);
+        }
+
+        await tx.sessionEvent.create({
+          data: {
+            user_id: userId,
+            study_session_id: id,
+            block_id: activeBlock.id,
+            type: 'DISTRACTION_DECLARED',
+            declared_seconds: declaredSeconds,
+            occurred_at: now,
+          },
+        });
+      }
+
+      await tx.sessionEvent.create({
+        data: {
+          user_id: userId,
+          study_session_id: id,
+          block_id: activeBlock.id,
+          type: 'BLOCK_FINISH',
+          occurred_at: now,
+        },
+      });
+
+      await tx.sessionEvent.create({
+        data: {
+          user_id: userId,
+          study_session_id: id,
+          block_id: nextBlock.id,
+          type: 'BLOCK_START',
+          occurred_at: now,
+        },
+      });
+
+      const fullSession = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+      });
+
+      return toSessionView(fullSession, now);
+    });
+  }
+
+  /**
+   * POST /api/study-sessions/:id/finish
+   */
+  static async finish(
+    userId: string,
+    id: string,
+    declaredMinutes?: number
+  ): Promise<StudySessionView> {
+    return prisma.$transaction(async (tx) => {
+      const row = await lockSessionForUpdate(tx, userId, id);
+      if (row.status !== 'IN_PROGRESS') {
+        throw new AppError(409, 'SESSION_NOT_IN_PROGRESS', 'A sessão não está em andamento.');
+      }
+
+      const session = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+        },
+      });
+
+      const domainBlocks: SessionBlockDTO[] = session.session_blocks.map((b) => ({
+        id: b.id,
+        kind: b.kind as any,
+        planned_minutes: b.planned_minutes,
+        position: b.position,
+      }));
+
+      const domainEvents: SessionEventDTO[] = session.session_events.map((e) => ({
+        type: e.type as any,
+        block_id: e.block_id,
+        occurred_at: new Date(e.occurred_at),
+        declared_seconds: e.declared_seconds,
+      }));
+
+      const activeBlock = findActiveBlock(domainBlocks, domainEvents);
+      const now = new Date();
+
+      if (declaredMinutes !== undefined) {
+        if (!activeBlock) {
+          throw new AppError(
+            409,
+            'BLOCK_NOT_ACTIVE',
+            'Nenhuma etapa ativa encontrada para registrar a distração.'
+          );
+        }
+        const activeBlockEvents = domainEvents.filter((e) => e.block_id === activeBlock.id);
+        const declaredSeconds = declaredMinutes * 60;
+        const valRes = validateDeclaredDistraction(activeBlockEvents, declaredSeconds, now);
+        if (!valRes.ok) {
+          throw new AppError(422, 'DECLARED_DISTRACTION_EXCEEDED', valRes.error);
+        }
+
+        await tx.sessionEvent.create({
+          data: {
+            user_id: userId,
+            study_session_id: id,
+            block_id: activeBlock.id,
+            type: 'DISTRACTION_DECLARED',
+            declared_seconds: declaredSeconds,
+            occurred_at: now,
+          },
+        });
+      }
+
+      if (activeBlock) {
+        await tx.sessionEvent.create({
+          data: {
+            user_id: userId,
+            study_session_id: id,
+            block_id: activeBlock.id,
+            type: 'BLOCK_FINISH',
+            occurred_at: now,
+          },
+        });
+      }
+
+      await tx.sessionEvent.create({
+        data: {
+          user_id: userId,
+          study_session_id: id,
+          block_id: null,
+          type: 'SESSION_FINISH',
+          occurred_at: now,
+        },
+      });
+
+      await tx.studySession.update({
+        where: { id },
+        data: {
+          status: 'FINISHED',
+          ended_at: now,
+        },
+      });
+
+      const fullSession = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+      });
+
+      return toSessionView(fullSession, now);
+    });
+  }
+
+  /**
+   * POST /api/study-sessions/:id/cancel
+   */
+  static async cancel(userId: string, id: string): Promise<StudySessionView> {
+    return prisma.$transaction(async (tx) => {
+      const row = await lockSessionForUpdate(tx, userId, id);
+      if (row.status !== 'IN_PROGRESS') {
+        throw new AppError(409, 'SESSION_NOT_IN_PROGRESS', 'A sessão não está em andamento.');
+      }
+
+      const now = new Date();
+
+      await tx.sessionEvent.create({
+        data: {
+          user_id: userId,
+          study_session_id: id,
+          block_id: null,
+          type: 'SESSION_CANCEL',
+          occurred_at: now,
+        },
+      });
+
+      const updated = await tx.studySession.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          ended_at: now,
+        },
+      });
+
+      if (updated.planned_session_id) {
+        await tx.plannedSession.updateMany({
+          where: {
+            id: updated.planned_session_id,
+            user_id: userId,
+            status: 'DONE',
+          },
+          data: {
+            status: 'PLANNED',
+          },
+        });
+      }
+
+      const fullSession = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+      });
+
+      return toSessionView(fullSession, now);
+    });
   }
 }
