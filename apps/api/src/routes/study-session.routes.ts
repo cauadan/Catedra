@@ -16,3 +16,4 @@ studySessionRouter.post('/:id/events', StudySessionController.recordEvent);
 studySessionRouter.post('/:id/blocks/:blockId/finish', StudySessionController.finishBlock);
 studySessionRouter.post('/:id/finish', StudySessionController.finish);
 studySessionRouter.post('/:id/cancel', StudySessionController.cancel);
+studySessionRouter.post('/:id/evaluation', StudySessionController.evaluate);

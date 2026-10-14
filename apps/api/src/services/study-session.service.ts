@@ -13,6 +13,8 @@ import {
   validateBlockTransition,
   validateDeclaredDistraction,
   ManualEventType,
+  SessionEvaluationInput,
+  validatePracticeRecord,
 } from '@estudos/domain';
 
 export interface StudySessionView {
@@ -766,6 +768,136 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, now);
+    });
+  }
+
+  /**
+   * POST /api/study-sessions/:id/evaluation
+   */
+  static async evaluate(
+    userId: string,
+    id: string,
+    input: SessionEvaluationInput
+  ): Promise<StudySessionView> {
+    return prisma.$transaction(async (tx) => {
+      const row = await lockSessionForUpdate(tx, userId, id);
+      if (row.status !== 'FINISHED') {
+        throw new AppError(
+          409,
+          'SESSION_NOT_FINISHED',
+          'Apenas sessões concluídas podem ser avaliadas.'
+        );
+      }
+
+      const existingEval = await tx.sessionEvaluation.findUnique({
+        where: { study_session_id: id },
+      });
+      if (existingEval) {
+        throw new AppError(
+          409,
+          'EVALUATION_ALREADY_EXISTS',
+          'Esta sessão de estudo já foi avaliada.'
+        );
+      }
+
+      const session = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          session_blocks: { orderBy: { position: 'asc' } },
+        },
+      });
+
+      // Validação de prática
+      const practiceRecords = input.practice_records || [];
+      for (const pr of practiceRecords) {
+        const v = validatePracticeRecord(pr);
+        if (!v.ok) {
+          throw new AppError(400, 'BAD_REQUEST', v.error || 'Registro de prática inválido.');
+        }
+      }
+
+      // Descarte de linhas com questions === 0
+      const activeRecords = practiceRecords.filter((pr) => pr.questions > 0);
+
+      // Resolução de block_id e validação de topic_id para os itens válidos
+      const practiceBlock = session.session_blocks.find((b) => b.kind === 'PRACTICE');
+      const fallbackBlock = session.session_blocks[session.session_blocks.length - 1];
+
+      const recordsToInsert = [];
+      for (const pr of activeRecords) {
+        const topic = await tx.topic.findFirst({
+          where: { id: pr.topic_id, user_id: userId },
+        });
+        if (!topic) {
+          throw new AppError(404, 'NOT_FOUND', `Assunto ${pr.topic_id} não encontrado.`);
+        }
+
+        let targetBlockId: string | null = null;
+        if (pr.block_id) {
+          const found = session.session_blocks.find((b) => b.id === pr.block_id);
+          if (!found) {
+            throw new AppError(
+              404,
+              'NOT_FOUND',
+              'Etapa informada no registro de prática não encontrada nesta sessão.'
+            );
+          }
+          targetBlockId = found.id;
+        } else {
+          targetBlockId = practiceBlock ? practiceBlock.id : fallbackBlock?.id ?? null;
+        }
+
+        recordsToInsert.push({
+          user_id: userId,
+          study_session_id: id,
+          block_id: targetBlockId,
+          topic_id: pr.topic_id,
+          questions: pr.questions,
+          correct: pr.correct,
+        });
+      }
+
+      try {
+        await tx.sessionEvaluation.create({
+          data: {
+            user_id: userId,
+            study_session_id: id,
+            understanding: input.understanding,
+            focus: input.focus,
+            difficulty: input.difficulty,
+            notes: input.notes?.trim() || null,
+          },
+        });
+      } catch (err: any) {
+        if (err.code === 'P2002') {
+          throw new AppError(
+            409,
+            'EVALUATION_ALREADY_EXISTS',
+            'Esta sessão de estudo já foi avaliada.'
+          );
+        }
+        throw err;
+      }
+
+      for (const rec of recordsToInsert) {
+        await tx.practiceRecord.create({
+          data: rec,
+        });
+      }
+
+      const fullSession = await tx.studySession.findUniqueOrThrow({
+        where: { id },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+      });
+
+      return toSessionView(fullSession, new Date());
     });
   }
 }
