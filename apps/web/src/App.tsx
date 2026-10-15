@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard';
 import { PlaceholderModule } from './pages/PlaceholderModule';
 import { Subjects } from './pages/Subjects';
 import { Agenda } from './pages/Agenda';
+import { Timer } from './pages/Timer';
 
 /**
  * Roteamento e orquestração de páginas do frontend.
@@ -37,12 +38,7 @@ function AppRoutes() {
         ) : path === '/agenda' ? (
           <Agenda />
         ) : path === '/timer' ? (
-          <PlaceholderModule
-            id="timer"
-            title="Cronômetro de Estudo"
-            phase="Fase 3"
-            description="Controle e acompanhamento de sessões com foco e tempo líquido."
-          />
+          <Timer />
         ) : path === '/goals' ? (
           <PlaceholderModule
             id="goals"
