@@ -90,13 +90,40 @@ npm run typecheck
 - **Frontend (`apps/web`)**:
   - Página `/agenda` completa integrada ao TanStack Query, com alternância instantânea entre visão Diária e Semanal e controles de navegação no tempo.
   - Cards de sumário dinâmicos destacando carga total planejada, total de sessões e distribuição por etapa de estudo.
-  - Cards de sessão ricos (`PlannedSessionCard`) com visualização de matéria, assunto, pílulas de blocos de estudo, badges de prioridade, avisos de sobreposição e menu de ações rápidas.
+  - Cards de sessão ricos (`PlannedSessionCard`) com visualização de matéria, assunto, pílulas de blocos de estudo, badges de prioridade, avisos de sobreposição, botão "Iniciar Estudo" e menu de ações rápidas.
   - Modal de planejamento (`PlannedSessionModal`) com atalhos de duração, preenchimento inteligente de presets de estudo, e barra de validação dinâmica colorida (Amarela, Verde e Vermelha) impedindo o envio de dados inconsistentes.
+
+### Execução do Estudo, Timer por Etapa e Avaliação Pós-Sessão (Fases 4 e 5 Unificadas)
+- **Domínio Puro (`packages/domain`)**:
+  - Máquina de estados determinística do timer por etapa (`timer.ts`): estados `NOT_STARTED`, `STUDYING`, `PAUSED`, `DISTRACTED` e `FINISHED`, transições válidas e tratamento de desempate temporal determinístico.
+  - Fórmulas de tempo líquido e efetivo calculadas estritamente em segundos inteiros: cômputo de pausas, distrações em tempo real e compensação por distração não cronometrada (`DISTRACTION_DECLARED`).
+  - Detecção visual de etapa incompleta (`isBlockIncomplete`) com base no limite configurável `MAX_EVENT_GAP_MINUTES = 120` ou o dobro da duração planejada da etapa.
+  - Métricas agregadas da sessão (`calculateSessionMetrics`): tempo efetivo total, tempo total de relógio, efetividade/foco (0 a 100%) e aderência ao planejamento (0 a 100%).
+  - Avaliação de exercícios e acurácia (`practice.ts`): função `calculateAccuracy`, agregador `calculateAggregateAccuracy` e normalização de notas qualitativas de entendimento (`normalizeUnderstandingScore`).
+  - Esquemas de validação Zod estritos (`study-session.ts`) com rejeição de propriedades não permitidas (`.strict()`).
+- **Backend e API REST (`apps/api`)**:
+  - Endpoints sob `/api/study-sessions`:
+    - `POST /`: Início de sessão em dois modos (Modo 1: a partir de uma sessão planejada via `planned_session_id`; Modo 2: avulsa informando `topic_id` e roteiro de etapas). Protegido com trava de concorrência (`pg_advisory_xact_lock`) e validação estrita (máximo de 1 sessão ativa e bloqueio caso haja avaliação pendente).
+    - `GET /active`: Retorna a sessão em andamento com carimbo do servidor (`server_now`) para sincronização do cronômetro no cliente sem drift.
+    - `GET /pending-evaluation`: Retorna a sessão concluída que necessita de avaliação antes de permitir novos estudos.
+    - `POST /:id/events`: Registro de eventos manuais de transição (`PAUSE`, `RESUME`, `DISTRACTION_START`, `DISTRACTION_END`) com bloqueio pessimista transacional (`SELECT ... FOR UPDATE`).
+    - `POST /:id/blocks/:blockId/finish`: Finalização de bloco com avanço determinístico para a próxima etapa e compensação opcional de distração declarada (validada estritamente contra o tempo líquido disponível, respondendo 422 Unprocessable Entity em caso de excesso).
+    - `POST /:id/finish`: Conclusão da sessão, consolidação e persistência das métricas no banco de dados.
+    - `POST /:id/cancel`: Cancelamento da sessão sem cômputo de métricas nem poluição do histórico.
+    - `POST /:id/evaluation`: Avaliação pós-sessão (compreensão, foco, dificuldade, anotações de até 1000 caracteres) e persistência de registros de prática (`PracticeRecord`) associados ao bloco de prática correspondente.
+  - Concorrência em PostgreSQL real: Testes com `Promise.all` cobrindo criação simultânea de sessões, eventos concorrentes em condição de corrida e submissão duplicada de avaliação.
+- **Frontend (`apps/web`)**:
+  - Página `/timer` com relógio sincronizado em tempo real (`useStudyClock`), cards de tempo, barra de progresso, alertas visuais para intervalos longos sem registro e controles de estudo.
+  - Diálogo de avanço de etapa e conclusão (`FinishStepDialog`) com input opcional de distração declarada e exibição em linha de erros de validação (HTTP 422).
+  - Banner de avaliação pendente (`PendingEvaluationBanner`) bloqueando a criação de novos estudos até a conclusão da avaliação da sessão anterior.
+  - Formulário de estudo avulso (`AdHocSessionForm`) com seletor de matérias e assuntos ativos, atalhos de tempo e presets automáticos (`BALANCED`, `PRACTICE_FOCUS`, `NEW_ONLY`).
+  - Modal de avaliação pós-sessão (`SessionEvaluationModal`) com chips de autoavaliação, múltiplas linhas de exercícios por assunto, cálculo em tempo real de aproveitamento percentual e tela de resumo consolidado com navegação para a Agenda.
+  - Integração na `/agenda`: Botão "Iniciar Estudo" em cards planejados e diálogo informativo em caso de conflito (HTTP 409) com atalho de redirecionamento para o cronômetro.
 
 ## O Que Ficou de Fora (Próximas Fases)
 
-Conforme instruído no contexto e nos marcos arquiteturais, a base foi desenvolvida de forma modular e expansível para as próximas entregas:
+Conforme a arquitetura e o planejamento modular da plataforma:
 
-- **Fase 4**: Metas de Estudo e Estatísticas Qualitativas (Classificação FORTE, REGULAR, FRACO).
-- **Fase 5**: Observatório Semanal e relatórios de aderência ao plano.
-- **Execução Realizada e Cronômetro**: Registro de sessões executadas reais e integração com timer em tempo real (conforme especificado para os módulos de estudo em execução).
+- **Fase 6**: Metas de Estudo (definição e acompanhamento de metas de horas e volume de questões resolvidas).
+- **Fase 7**: Desempenho e Estatísticas (classificação de matérias e assuntos em FORTE, REGULAR e FRACO, com cálculo ponderado de notas).
+- **Fase 8**: Observatório Semanal (relatório consolidado semanal com insights de constância, hábitos e evolução).
