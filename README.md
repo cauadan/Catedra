@@ -83,8 +83,8 @@ npm run typecheck
     - `POST /`: Criação com validação de existência e status ativo da matéria/assunto vinculado, bloqueio de conflitos quando aplicável e persistência atômica.
     - `GET /`: Listagem com filtros por intervalo de datas (`start_date`, `end_date`), assunto (`topic_id`) e status, retornando dados ordenados, sumário agregado e IDs de sessões conflitantes.
     - `PATCH /:id`: Edição parcial com checagem de propriedade (`user_id`) e integridade.
-    - `PATCH /:id/reschedule`: Remarcação transacional (cria uma nova sessão com `original_session_id` apontando para a anterior e marca a sessão original como `RESCHEDULED`).
-    - `PATCH /:id/status`: Transição de status (`PLANNED`, `COMPLETED`, `SKIPPED`, `CANCELLED`).
+    - `POST /:id/reschedule`: Remarcação transacional (cria uma nova sessão com `rescheduled_from_id` apontando para a anterior e marca a sessão original como `RESCHEDULED`).
+    - `PATCH /:id/status`: Transição de status (`PLANNED`, `DONE`, `SKIPPED`, `RESCHEDULED`).
     - `DELETE /:id`: Exclusão atômica de sessão pertencente ao usuário.
   - Concorrência e Isolamento: Testes de corrida (`Promise.all`) validando tratamento determinístico de conflitos simultâneos (retornando 409 Conflict em violações de chave estrangeira concorrentes ou 404 em idempotência).
 - **Frontend (`apps/web`)**:
