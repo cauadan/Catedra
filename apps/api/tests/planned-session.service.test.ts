@@ -211,12 +211,13 @@ describe('PlannedSessionService (Testes de Unidade/Integração do Serviço)', (
     const originalNoBanco = await prisma.plannedSession.findUnique({ where: { id: original.id } });
     expect(originalNoBanco?.status).toBe('RESCHEDULED');
 
-    // Excluir original deve falhar com 409 (status RESCHEDULED e possui filha vinculada)
-    await expect(
-      PlannedSessionService.delete(user.id, original.id)
-    ).rejects.toMatchObject({ statusCode: 409 });
+    // Excluir original (RESCHEDULED) agora é permitido e desvincula a filha (rescheduled_from_id vira null)
+    await expect(PlannedSessionService.delete(user.id, original.id)).resolves.not.toThrow();
 
-    // Excluir a filha (PLANNED) deve funcionar
+    const filhaAposExclusao = await prisma.plannedSession.findUnique({ where: { id: rescheduled.id } });
+    expect(filhaAposExclusao?.rescheduled_from_id).toBeNull();
+
+    // Excluir a filha (PLANNED) também deve funcionar
     await expect(PlannedSessionService.delete(user.id, rescheduled.id)).resolves.not.toThrow();
   });
 });

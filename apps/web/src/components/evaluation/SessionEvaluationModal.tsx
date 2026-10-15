@@ -149,8 +149,8 @@ export function SessionEvaluationModal({
   }, [session]);
 
   return (
-    <div className="fixed inset-0 z-50 !m-0 !mt-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-6 md:p-8 shadow-2xl border border-slate-200 my-8">
+    <div className="fixed inset-0 z-50 !m-0 !mt-0 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/50 backdrop-blur-sm">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl my-auto bg-white p-6 md:p-8 border border-slate-200">
         {!isSubmitted ? (
           <div>
             {/* Cabeçalho do Modal */}
@@ -302,10 +302,14 @@ export function SessionEvaluationModal({
                             type="number"
                             min="0"
                             step="1"
-                            value={row.questions}
-                            onChange={(e) =>
-                              handleRowChange(idx, 'questions', Math.max(0, parseInt(e.target.value, 10) || 0))
-                            }
+                            value={row.questions === 0 ? '' : row.questions}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const clean = e.target.value.replace(/^0+(?=\d)/, '');
+                              const num = clean === '' ? 0 : parseInt(clean, 10);
+                              handleRowChange(idx, 'questions', isNaN(num) ? 0 : Math.max(0, num));
+                            }}
                             disabled={isPending}
                             className="w-16 rounded-xl border border-slate-300 bg-white px-2 py-1 text-center text-xs text-slate-800"
                           />
@@ -318,10 +322,14 @@ export function SessionEvaluationModal({
                             type="number"
                             min="0"
                             step="1"
-                            value={row.correct}
-                            onChange={(e) =>
-                              handleRowChange(idx, 'correct', Math.max(0, parseInt(e.target.value, 10) || 0))
-                            }
+                            value={row.correct === 0 ? '' : row.correct}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const clean = e.target.value.replace(/^0+(?=\d)/, '');
+                              const num = clean === '' ? 0 : parseInt(clean, 10);
+                              handleRowChange(idx, 'correct', isNaN(num) ? 0 : Math.max(0, num));
+                            }}
                             disabled={isPending}
                             className="w-16 rounded-xl border border-slate-300 bg-white px-2 py-1 text-center text-xs text-slate-800"
                           />
@@ -358,7 +366,7 @@ export function SessionEvaluationModal({
                     className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    <span>+ Adicionar outro assunto</span>
+                    <span>Adicionar outro assunto</span>
                   </button>
 
                   <div className="text-xs font-semibold text-slate-600">
@@ -397,7 +405,7 @@ export function SessionEvaluationModal({
                   disabled={isPending}
                   className="rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-50"
                 >
-                  {isPending ? 'Salvando Avaliação...' : 'Salvar Avaliação & Concluir'}
+                  {isPending ? 'Salvando Avaliação...' : 'Salvar Avaliação e Concluir'}
                 </button>
               </div>
             </form>

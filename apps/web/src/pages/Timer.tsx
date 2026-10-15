@@ -12,6 +12,7 @@ import {
   finishSession,
   cancelSession,
   submitEvaluation,
+  updateSessionBlocks,
   computeClockOffsetMs,
   type StudySessionView,
   type StartStudySessionPayload,
@@ -184,6 +185,15 @@ export function Timer() {
     onSuccess: () => invalidateAll(),
   });
 
+  // Mutação de Ajuste de Minutos das Etapas
+  const updateBlocksMutation = useMutation({
+    mutationFn: (blocks: Array<{ id: string; planned_minutes: number }>) => {
+      if (!activeSession) throw new Error('Nenhuma sessão ativa.');
+      return updateSessionBlocks(activeSession.id, blocks);
+    },
+    onSuccess: () => invalidateAll(),
+  });
+
   // Handlers dos botões do TimerDisplay
   const handleAdvanceStepClick = () => {
     setFinishDialog({ isOpen: true, mode: 'advance', errorMessage: undefined });
@@ -227,7 +237,8 @@ export function Timer() {
     advanceMutation.isPending ||
     finishMutation.isPending ||
     cancelMutation.isPending ||
-    createAdHocMutation.isPending;
+    createAdHocMutation.isPending ||
+    updateBlocksMutation.isPending;
 
   if (loadingActive || loadingPending) {
     return (
@@ -256,6 +267,7 @@ export function Timer() {
             onAdvanceStep={handleAdvanceStepClick}
             onFinishSession={handleFinishSessionClick}
             onCancelSession={handleCancelSessionClick}
+            onUpdateBlocks={(blocks) => updateBlocksMutation.mutateAsync(blocks)}
           />
         ) : pendingSession ? (
           /* 2. Cenário: Nenhuma Sessão Ativa, mas Há Avaliação Pendente */

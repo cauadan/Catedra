@@ -108,7 +108,7 @@ describe('SessionEvaluationModal Component (@estudos/web)', () => {
     expect(html).toContain('Dominei');
 
     // Botão de adicionar assunto na prática
-    expect(html).toContain('+ Adicionar outro assunto');
+    expect(html).toContain('Adicionar outro assunto');
 
     // Rodapé de aproveitamento com 0 questões começa com '–'
     expect(html).toContain('–');

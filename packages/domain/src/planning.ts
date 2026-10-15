@@ -92,12 +92,13 @@ function isValidSessionMinutes(n: number): boolean {
  */
 export function validatePlannedBlocks(
   plannedMinutes: number,
-  blocks: ReadonlyArray<PlannedBlockInput>
+  blocks: ReadonlyArray<PlannedBlockInput>,
+  minMinutes: number = PLANNED_MINUTES_MIN
 ): BlockValidationResult {
-  if (!isValidSessionMinutes(plannedMinutes)) {
+  if (!Number.isInteger(plannedMinutes) || plannedMinutes < minMinutes || plannedMinutes > PLANNED_MINUTES_MAX) {
     return {
       ok: false,
-      message: `A duração da sessão deve ser um número inteiro entre ${PLANNED_MINUTES_MIN} e ${PLANNED_MINUTES_MAX} minutos.`,
+      message: `A duração da sessão deve ser um número inteiro entre ${minMinutes} e ${PLANNED_MINUTES_MAX} minutos.`,
     };
   }
 

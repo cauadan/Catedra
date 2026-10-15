@@ -160,6 +160,16 @@ export async function cancelSession(id: string): Promise<{ data: StudySessionVie
   return api.post<{ data: StudySessionView }>(`/api/study-sessions/${id}/cancel`);
 }
 
+export async function updateSessionBlocks(
+  id: string,
+  blocks: Array<{ id: string; planned_minutes: number }>
+): Promise<{ data: StudySessionView }> {
+  return api.patch<{ data: StudySessionView }>(
+    `/api/study-sessions/${id}/blocks`,
+    { blocks }
+  );
+}
+
 export async function submitEvaluation(
   id: string,
   body: SubmitEvaluationPayload

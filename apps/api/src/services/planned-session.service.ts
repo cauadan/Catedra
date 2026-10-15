@@ -8,6 +8,10 @@ import {
   utcToLocalTime,
   summarizePlannedSessions,
   findOverlappingSessionIds,
+  calculateSessionMetrics,
+  sortSessionEvents,
+  type SessionBlockDTO,
+  type SessionEventDTO,
   type PlannedSessionCreateInput,
   type PlannedSessionUpdateInput,
   type PlannedSessionRescheduleInput,
@@ -38,6 +42,8 @@ export interface PlannedSessionDTO {
   updated_at: string;
   local_date: string;
   local_time: string;
+  actual_effective_seconds?: number | null;
+  actual_total_seconds?: number | null;
   subject: {
     id: string;
     name: string;
@@ -73,6 +79,42 @@ function mapPlannedSessionDTO(
       ? session.scheduled_start
       : new Date(session.scheduled_start);
 
+  let actualEffectiveSeconds: number | null = null;
+  let actualTotalSeconds: number | null = null;
+
+  if (session.status === 'DONE' && session.study_sessions && session.study_sessions.length > 0) {
+    const studySession = session.study_sessions[0];
+    const domainBlocks: SessionBlockDTO[] = (studySession.session_blocks || []).map((b: any) => ({
+      id: b.id,
+      kind: b.kind,
+      planned_minutes: b.planned_minutes,
+      position: b.position,
+    }));
+    const domainEvents: SessionEventDTO[] = (studySession.session_events || []).map((e: any) => ({
+      type: e.type,
+      block_id: e.block_id,
+      occurred_at: new Date(e.occurred_at),
+      declared_seconds: e.declared_seconds,
+    }));
+    const sortedEvents = sortSessionEvents(domainEvents);
+    const refNow = studySession.ended_at ? new Date(studySession.ended_at) : new Date();
+    const metrics = calculateSessionMetrics(
+      {
+        status: studySession.status,
+        started_at: new Date(studySession.started_at),
+        ended_at: studySession.ended_at ? new Date(studySession.ended_at) : null,
+        planned_start: scheduledStartDate,
+      },
+      domainBlocks,
+      sortedEvents,
+      refNow
+    );
+    if (metrics) {
+      actualEffectiveSeconds = metrics.effectiveSeconds;
+      actualTotalSeconds = metrics.totalSeconds;
+    }
+  }
+
   return {
     id: session.id,
     user_id: session.user_id,
@@ -89,6 +131,8 @@ function mapPlannedSessionDTO(
     updated_at: session.updated_at.toISOString(),
     local_date: utcToLocalDate(scheduledStartDate, timezone),
     local_time: utcToLocalTime(scheduledStartDate, timezone),
+    actual_effective_seconds: actualEffectiveSeconds,
+    actual_total_seconds: actualTotalSeconds,
     subject: {
       id: session.subject.id,
       name: session.subject.name,
@@ -142,6 +186,14 @@ export class PlannedSessionService {
         },
         planned_blocks: {
           orderBy: { position: 'asc' },
+        },
+        study_sessions: {
+          where: { status: 'FINISHED' },
+          include: {
+            session_blocks: { orderBy: { position: 'asc' } },
+            session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          },
+          take: 1,
         },
       },
       orderBy: {
@@ -594,72 +646,36 @@ export class PlannedSessionService {
   static async delete(userId: string, sessionId: string): Promise<void> {
     const session = await prisma.plannedSession.findUnique({
       where: { id: sessionId },
-      include: {
-        study_sessions: { select: { id: true }, take: 1 },
-        rescheduled_to: { select: { id: true }, take: 1 },
-      },
     });
 
     if (!session || session.user_id !== userId) {
       throw new AppError(404, 'NOT_FOUND', 'Sessão planejada não encontrada.');
     }
 
-    if (session.status !== 'PLANNED' && session.status !== 'SKIPPED') {
-      throw new AppError(
-        409,
-        'CONFLICT',
-        `Sessões com status "${session.status}" não podem ser excluídas. Apenas "PLANNED" e "SKIPPED" são permitidas.`
-      );
-    }
-
-    if (session.study_sessions.length > 0) {
-      throw new AppError(
-        409,
-        'CONFLICT',
-        'Não é possível excluir sessão planejada que possui sessões de estudo vinculadas.'
-      );
-    }
-
-    if (session.rescheduled_to.length > 0) {
-      throw new AppError(
-        409,
-        'CONFLICT',
-        'Não é possível excluir sessão que possui sessão derivada (remarcada).'
-      );
-    }
-
     try {
       await prisma.$transaction(async (tx) => {
-        // Checagem defensiva de dependentes na transação
+        // Checagem defensiva de existência na transação
         const current = await tx.plannedSession.findFirst({
           where: { id: sessionId, user_id: userId },
-          include: {
-            study_sessions: { select: { id: true }, take: 1 },
-            rescheduled_to: { select: { id: true }, take: 1 },
-          },
         });
 
         if (!current) {
           throw new AppError(404, 'NOT_FOUND', 'Sessão planejada não encontrada.');
         }
 
-        if (current.status !== 'PLANNED' && current.status !== 'SKIPPED') {
-          throw new AppError(
-            409,
-            'CONFLICT',
-            `Sessões com status "${current.status}" não podem ser excluídas.`
-          );
-        }
+        // 1. Desvincular sessões filhas derivadas (remarcações)
+        await tx.plannedSession.updateMany({
+          where: { rescheduled_from_id: sessionId },
+          data: { rescheduled_from_id: null },
+        });
 
-        if (current.study_sessions.length > 0 || current.rescheduled_to.length > 0) {
-          throw new AppError(
-            409,
-            'CONFLICT',
-            'Não é possível excluir: sessão possui registros dependentes.'
-          );
-        }
+        // 2. Desvincular sessões de estudo executadas vinculadas
+        await tx.studySession.updateMany({
+          where: { planned_session_id: sessionId },
+          data: { planned_session_id: null },
+        });
 
-        // Apagar blocos primeiro
+        // 3. Apagar blocos planejados
         await tx.plannedBlock.deleteMany({
           where: {
             planned_session_id: sessionId,
@@ -667,12 +683,11 @@ export class PlannedSessionService {
           },
         });
 
-        // Apagar sessão atimicamente checando count
+        // 4. Apagar sessão planejada atimicamente checando count
         const deleteResult = await tx.plannedSession.deleteMany({
           where: {
             id: sessionId,
             user_id: userId,
-            status: { in: ['PLANNED', 'SKIPPED'] },
           },
         });
 

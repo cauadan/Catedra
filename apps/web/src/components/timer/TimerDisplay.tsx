@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Play,
   Pause,
@@ -9,6 +9,7 @@ import {
   Coffee,
   Clock,
   Sparkles,
+  Sliders,
 } from 'lucide-react';
 import {
   findActiveBlock,
@@ -36,6 +37,7 @@ export interface TimerDisplayProps {
   onAdvanceStep: () => void;
   onFinishSession: () => void;
   onCancelSession: () => void;
+  onUpdateBlocks?: (blocks: Array<{ id: string; planned_minutes: number }>) => Promise<any>;
 }
 
 export function TimerDisplay({
@@ -49,13 +51,50 @@ export function TimerDisplay({
   onAdvanceStep,
   onFinishSession,
   onCancelSession,
+  onUpdateBlocks,
 }: TimerDisplayProps) {
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustedBlocks, setAdjustedBlocks] = useState<Array<{ id: string; planned_minutes: number }>>([]);
+  const [isSavingBlocks, setIsSavingBlocks] = useState(false);
+  const [adjustError, setAdjustError] = useState('');
   const blocks: SessionBlockDTO[] = session.session_blocks.map((b) => ({
     id: b.id,
     kind: b.kind,
     planned_minutes: b.planned_minutes,
     position: b.position,
   }));
+
+  const handleOpenAdjustModal = () => {
+    setAdjustedBlocks(blocks.map((b) => ({ id: b.id, planned_minutes: b.planned_minutes })));
+    setAdjustError('');
+    setIsAdjustModalOpen(true);
+  };
+
+  const handleSaveAdjustedBlocks = async () => {
+    for (const b of adjustedBlocks) {
+      if (!b.planned_minutes || b.planned_minutes < 1) {
+        setAdjustError('Cada etapa deve ter no mínimo 1 minuto.');
+        return;
+      }
+      if (b.planned_minutes > 480) {
+        setAdjustError('Nenhuma etapa pode exceder 480 minutos.');
+        return;
+      }
+    }
+
+    if (onUpdateBlocks) {
+      try {
+        setIsSavingBlocks(true);
+        setAdjustError('');
+        await onUpdateBlocks(adjustedBlocks);
+        setIsAdjustModalOpen(false);
+      } catch (err: any) {
+        setAdjustError(err.message || 'Erro ao atualizar etapas.');
+      } finally {
+        setIsSavingBlocks(false);
+      }
+    }
+  };
 
   const events = toDomainEvents(session.session_events);
 
@@ -217,9 +256,22 @@ export function TimerDisplay({
 
         {/* Grid de Blocos da Sessão */}
         <div className="mb-8 pt-6 border-t border-slate-100">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-            Roteiro de Etapas da Sessão
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Roteiro de Etapas da Sessão
+            </p>
+            {onUpdateBlocks && (
+              <button
+                type="button"
+                onClick={handleOpenAdjustModal}
+                disabled={isPending}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+              >
+                <Sliders className="h-3.5 w-3.5 text-slate-500" />
+                Ajustar Etapas
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {blocks.map((b) => {
               const isActive = activeBlock?.id === b.id;
@@ -368,6 +420,90 @@ export function TimerDisplay({
             <span className="text-xl font-black text-blue-600">
               {formatPercent(sessionMetrics.adherence)}
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Ajuste de Duração das Etapas */}
+      {isAdjustModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 !mt-0">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">
+              Ajustar Duração das Etapas
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Defina os minutos planejados para cada etapa desta sessão em andamento.
+            </p>
+
+            {adjustError && (
+              <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-2.5 text-xs text-red-700">
+                {adjustError}
+              </div>
+            )}
+
+            <div className="space-y-3 mb-6">
+              {adjustedBlocks.map((b, idx) => {
+                const orig = blocks.find((item) => item.id === b.id);
+                const label = orig ? BLOCK_KIND_LABELS[orig.kind] : `Etapa ${idx + 1}`;
+                return (
+                  <div
+                    key={b.id}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 p-3 bg-slate-50/50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">
+                        {idx + 1}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800">
+                        {label}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="1"
+                        max="480"
+                        value={b.planned_minutes === 0 ? '' : b.planned_minutes}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/^0+(?=\d)/, '');
+                          const val = cleaned === '' ? 0 : parseInt(cleaned, 10);
+                          setAdjustedBlocks((prev) =>
+                            prev.map((item) =>
+                              item.id === b.id
+                                ? { ...item, planned_minutes: isNaN(val) ? 0 : val }
+                                : item
+                            )
+                          );
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-16 rounded-lg border border-slate-300 bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
+                      />
+                      <span className="text-xs font-medium text-slate-500">min</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsAdjustModalOpen(false)}
+                disabled={isSavingBlocks}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAdjustedBlocks}
+                disabled={isSavingBlocks}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {isSavingBlocks ? 'Salvando...' : 'Salvar Alterações'}
+              </button>
+            </div>
           </div>
         </div>
       )}

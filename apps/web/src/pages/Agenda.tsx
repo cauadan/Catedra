@@ -182,7 +182,10 @@ export function Agenda() {
     }
   };
 
-  const sessions: any[] = agendaData?.sessions || [];
+  const rawSessionsList: any[] = agendaData?.sessions || [];
+  const sessions = useMemo(() => {
+    return rawSessionsList.filter((s) => s.status !== 'RESCHEDULED');
+  }, [rawSessionsList]);
   const overlappingIds: string[] = agendaData?.overlapping_ids || [];
   const summary = agendaData?.summary || {
     totalPlannedMinutes: 0,
@@ -356,7 +359,7 @@ export function Agenda() {
         </div>
       ) : (
         /* ================= VISÃO SEMANAL (Seg a Dom) ================= */
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
           {weekDays.map((dayStr, index) => {
             const daySessions = sessionsByDay.get(dayStr) || [];
             const isToday = dayStr === todayLocalDate;
@@ -365,7 +368,7 @@ export function Agenda() {
             return (
               <div
                 key={dayStr}
-                className={`flex flex-col rounded-2xl border p-3 min-h-[350px] transition ${
+                className={`flex flex-col rounded-2xl border p-3 min-h-[350px] min-w-0 overflow-hidden transition ${
                   isToday
                     ? 'border-blue-400 bg-blue-50/20 ring-1 ring-blue-300'
                     : 'border-slate-200 bg-slate-50/50'

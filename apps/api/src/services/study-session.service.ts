@@ -15,6 +15,7 @@ import {
   ManualEventType,
   SessionEvaluationInput,
   validatePracticeRecord,
+  StudySessionBlocksUpdateInput,
 } from '@estudos/domain';
 
 export interface StudySessionView {
@@ -937,6 +938,72 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, new Date());
+    });
+  }
+
+  /**
+   * PATCH /api/study-sessions/:id/blocks
+   * Atualiza os minutos planejados das etapas de uma sessão em andamento.
+   */
+  static async updateBlocks(
+    userId: string,
+    sessionId: string,
+    input: StudySessionBlocksUpdateInput
+  ): Promise<StudySessionView> {
+    const now = new Date();
+    return await prisma.$transaction(async (tx) => {
+      await lockSessionForUpdate(tx, userId, sessionId);
+
+      const session = await tx.studySession.findFirst({
+        where: { id: sessionId, user_id: userId },
+        include: {
+          session_blocks: true,
+        },
+      });
+
+      if (!session) {
+        throw new AppError(404, 'NOT_FOUND', 'Sessão de estudo não encontrada.');
+      }
+
+      if (session.status !== 'IN_PROGRESS') {
+        throw new AppError(
+          400,
+          'SESSION_NOT_IN_PROGRESS',
+          'Apenas sessões em andamento podem ter os minutos de suas etapas ajustados.'
+        );
+      }
+
+      const existingBlockIds = new Set(session.session_blocks.map((b) => b.id));
+      for (const item of input.blocks) {
+        if (!existingBlockIds.has(item.id)) {
+          throw new AppError(
+            400,
+            'BAD_REQUEST',
+            `A etapa "${item.id}" não pertence a esta sessão de estudo.`
+          );
+        }
+      }
+
+      for (const item of input.blocks) {
+        await tx.sessionBlock.update({
+          where: { id: item.id },
+          data: { planned_minutes: item.planned_minutes },
+        });
+      }
+
+      const fullSession = await tx.studySession.findUniqueOrThrow({
+        where: { id: sessionId },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+      });
+
+      return toSessionView(fullSession, now);
     });
   }
 }

@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Play, Sparkles, Clock, Layers, BookOpen, Sliders } from 'lucide-react';
+import { Play, Clock, Plus, Trash2, Sliders } from 'lucide-react';
 import {
   calculateBlockPreset,
   validatePlannedBlocks,
   BLOCK_KIND_LABELS,
+  BLOCK_KINDS,
   type BlockPreset,
   type BlockKindDTO,
 } from '@estudos/domain';
@@ -14,6 +15,12 @@ export interface AdHocSessionFormProps {
   topics: any[];
   isPending: boolean;
   onSubmit: (payload: StartStudySessionPayload) => void;
+}
+
+interface EditableStage {
+  id: string;
+  kind: BlockKindDTO;
+  planned_minutes: number;
 }
 
 export function AdHocSessionForm({
@@ -38,8 +45,12 @@ export function AdHocSessionForm({
     availableTopics[0]?.id || ''
   );
 
-  const [totalMinutes, setTotalMinutes] = useState<number>(60);
-  const [preset, setPreset] = useState<BlockPreset>('BALANCED');
+  const [stages, setStages] = useState<EditableStage[]>([
+    { id: '1', kind: 'REVIEW', planned_minutes: 10 },
+    { id: '2', kind: 'NEW_CONTENT', planned_minutes: 35 },
+    { id: '3', kind: 'PRACTICE', planned_minutes: 15 },
+  ]);
+  const [activePreset, setActivePreset] = useState<BlockPreset | null>('BALANCED');
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   // Ao trocar de matéria, atualiza o assunto padrão
@@ -49,15 +60,63 @@ export function AdHocSessionForm({
     setSelectedTopicId(related[0]?.id || '');
   };
 
-  // Cálculo automático das etapas baseado no preset
-  const calculatedBlocks = useMemo(() => {
+  // Soma automática dos minutos de todas as etapas
+  const totalMinutes = useMemo(() => {
+    return stages.reduce((acc, s) => acc + (Number(s.planned_minutes) || 0), 0);
+  }, [stages]);
+
+  // Aplicar preset ou duração rápida
+  const applyPreset = (duration: number, preset: BlockPreset) => {
     try {
-      const blocks = calculateBlockPreset(totalMinutes, preset);
-      return blocks;
+      const generated = calculateBlockPreset(duration, preset);
+      setStages(
+        generated.map((b, idx) => ({
+          id: String(idx + 1),
+          kind: b.kind as BlockKindDTO,
+          planned_minutes: b.planned_minutes,
+        }))
+      );
+      setActivePreset(preset);
+      setErrorMsg('');
     } catch {
-      return [];
+      // Falha silenciosa
     }
-  }, [totalMinutes, preset]);
+  };
+
+  // Alterar minutos de uma etapa
+  const handleMinutesChange = (id: string, rawVal: string) => {
+    setActivePreset(null);
+    const cleaned = rawVal.replace(/^0+(?=\d)/, '');
+    const num = cleaned === '' ? 0 : parseInt(cleaned, 10);
+    setStages((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, planned_minutes: isNaN(num) ? 0 : num } : s))
+    );
+  };
+
+  // Alterar tipo da etapa
+  const handleKindChange = (id: string, kind: BlockKindDTO) => {
+    setActivePreset(null);
+    setStages((prev) => prev.map((s) => (s.id === id ? { ...s, kind } : s)));
+  };
+
+  // Remover etapa
+  const handleRemoveStage = (id: string) => {
+    setActivePreset(null);
+    setStages((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  // Adicionar nova etapa
+  const handleAddStage = () => {
+    setActivePreset(null);
+    setStages((prev) => [
+      ...prev,
+      {
+        id: String(Date.now()),
+        kind: 'PRACTICE',
+        planned_minutes: 15,
+      },
+    ]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,12 +125,27 @@ export function AdHocSessionForm({
       return;
     }
 
-    if (totalMinutes < 5 || totalMinutes > 480) {
-      setErrorMsg('A duração total deve estar entre 5 e 480 minutos.');
+    const validStages = stages.filter((s) => s.planned_minutes > 0);
+    if (validStages.length === 0) {
+      setErrorMsg('Informe ao menos uma etapa com duração maior que 0 minutos.');
       return;
     }
 
-    const validation = validatePlannedBlocks(totalMinutes, calculatedBlocks);
+    if (totalMinutes < 1 || totalMinutes > 480) {
+      setErrorMsg('A duração total deve estar entre 1 e 480 minutos.');
+      return;
+    }
+
+    const validation = validatePlannedBlocks(
+      totalMinutes,
+      validStages.map((s, idx) => ({
+        kind: s.kind,
+        planned_minutes: s.planned_minutes,
+        position: idx + 1,
+      })),
+      1
+    );
+
     if (!validation.ok) {
       setErrorMsg(validation.message);
       return;
@@ -80,8 +154,8 @@ export function AdHocSessionForm({
     setErrorMsg('');
     onSubmit({
       topic_id: selectedTopicId,
-      blocks: calculatedBlocks.map((b) => ({
-        kind: b.kind as BlockKindDTO,
+      blocks: validStages.map((b) => ({
+        kind: b.kind,
         planned_minutes: b.planned_minutes,
       })),
     });
@@ -98,7 +172,7 @@ export function AdHocSessionForm({
         <div>
           <h2 className="text-xl font-bold text-slate-900">Iniciar Estudo Avulso</h2>
           <p className="text-xs text-slate-500">
-            Configure seu estudo imediato escolhendo a matéria e o roteiro por etapas.
+            Configure seu estudo imediato escolhendo a matéria e editando livremente o tempo de cada etapa.
           </p>
         </div>
       </div>
@@ -161,35 +235,22 @@ export function AdHocSessionForm({
           </div>
         </div>
 
-        {/* Duração Total com Atalhos Rápidos */}
-        <div>
-          <label
-            htmlFor="adhoc-duration"
-            className="block text-xs font-semibold text-slate-700 mb-1.5"
-          >
-            Duração Total (Minutos)
-          </label>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <input
-              id="adhoc-duration"
-              type="number"
-              min="5"
-              max="480"
-              value={totalMinutes}
-              onChange={(e) => setTotalMinutes(Math.max(5, parseInt(e.target.value, 10) || 5))}
-              disabled={isPending}
-              className="w-full sm:w-32 rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+        {/* Atalhos de Duração Rápida e Presets */}
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Atalhos de Divisão Rápida
+            </span>
             <div className="flex items-center gap-1.5 flex-wrap">
               {quickDurations.map((m) => (
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setTotalMinutes(m)}
+                  onClick={() => applyPreset(m, activePreset || 'BALANCED')}
                   className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
                     totalMinutes === m
                       ? 'border-blue-600 bg-blue-50 text-blue-700'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   {m} min
@@ -197,19 +258,13 @@ export function AdHocSessionForm({
               ))}
             </div>
           </div>
-        </div>
 
-        {/* Seleção de Preset de Divisão */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-            Modelo de Divisão por Etapas (Preset)
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
               {
                 id: 'BALANCED' as const,
                 title: 'Equilibrado',
-                desc: 'Revisão + Conteúdo + Prática',
+                desc: 'Revisão + Novo + Prática',
               },
               {
                 id: 'PRACTICE_FOCUS' as const,
@@ -219,42 +274,98 @@ export function AdHocSessionForm({
               {
                 id: 'NEW_ONLY' as const,
                 title: 'Conteúdo Novo',
-                desc: '100% Teoria e Conteúdo Novo',
+                desc: '100% Teoria e Conteúdo',
               },
             ].map((p) => (
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setPreset(p.id)}
-                className={`rounded-2xl border p-3.5 text-left transition ${
-                  preset === p.id
-                    ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-500'
-                    : 'border-slate-200 hover:border-slate-300'
+                onClick={() => applyPreset(totalMinutes >= 5 ? totalMinutes : 60, p.id)}
+                className={`rounded-xl border p-2.5 text-left transition ${
+                  activePreset === p.id
+                    ? 'border-blue-600 bg-blue-50/80 ring-1 ring-blue-500'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                <p className="text-sm font-bold text-slate-900">{p.title}</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">{p.desc}</p>
+                <p className="text-xs font-bold text-slate-900">{p.title}</p>
+                <p className="text-[11px] text-slate-500">{p.desc}</p>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Pré-visualização do Roteiro Gerado */}
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-            Roteiro Gerado Automaticamente
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {calculatedBlocks.map((b, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs"
+        {/* Edição Livre das Etapas */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-semibold text-slate-700">
+              Etapas do Estudo (Minutos por Etapa)
+            </label>
+            <span className="text-xs font-bold text-blue-600">
+              Duração Total Calculada: {totalMinutes} min
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {stages.map((stage, idx) => (
+              <div
+                key={stage.id}
+                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5"
               >
-                <span className="h-2 w-2 rounded-full bg-blue-600" />
-                <span>{BLOCK_KIND_LABELS[b.kind as BlockKindDTO]}</span>
-                <span className="font-mono text-slate-500">({b.planned_minutes} min)</span>
-              </span>
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-700 shrink-0">
+                  {idx + 1}
+                </span>
+
+                <select
+                  value={stage.kind}
+                  onChange={(e) => handleKindChange(stage.id, e.target.value as BlockKindDTO)}
+                  disabled={isPending}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none"
+                >
+                  {BLOCK_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {BLOCK_KIND_LABELS[k]}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <input
+                    type="number"
+                    min="0"
+                    max="480"
+                    placeholder="0"
+                    value={stage.planned_minutes === 0 ? '' : stage.planned_minutes}
+                    onChange={(e) => handleMinutesChange(stage.id, e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    disabled={isPending}
+                    className="w-16 rounded-lg border border-slate-300 bg-white px-2 py-1 text-center text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
+                  />
+                  <span className="text-xs text-slate-500 font-medium">min</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleRemoveStage(stage.id)}
+                  disabled={isPending || stages.length <= 1}
+                  className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 transition"
+                  title="Remover etapa"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             ))}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleAddStage}
+              disabled={isPending}
+              className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar Etapa
+            </button>
           </div>
         </div>
 
@@ -262,11 +373,11 @@ export function AdHocSessionForm({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isPending || !selectedTopicId}
+            disabled={isPending || !selectedTopicId || totalMinutes < 1}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-50"
           >
             <Play className="h-4 w-4 fill-current" />
-            <span>{isPending ? 'Iniciando...' : 'Iniciar Sessão de Estudo'}</span>
+            <span>{isPending ? 'Iniciando...' : `Iniciar Estudo (${totalMinutes} min)`}</span>
           </button>
         </div>
       </form>

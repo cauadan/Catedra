@@ -55,13 +55,15 @@ describe('Study Session Zod Schemas (@estudos/domain/study-session)', () => {
       ).toThrow();
     });
 
-    it('deve rejeitar Modo 2 se a soma for menor que 5 minutos', () => {
-      expect(() =>
-        studySessionCreateSchema.parse({
-          topic_id: 'topic-123',
-          blocks: [{ kind: 'REVIEW', planned_minutes: 4 }],
-        })
-      ).toThrow('A duração da sessão deve ser um número inteiro entre 5 e 480 minutos.');
+    it('deve aceitar Modo 2 com soma a partir de 1 minuto', () => {
+      const parsed = studySessionCreateSchema.parse({
+        topic_id: 'topic-123',
+        blocks: [{ kind: 'REVIEW', planned_minutes: 4 }],
+      });
+      expect(parsed.mode).toBe('ADHOC');
+      if (parsed.mode === 'ADHOC') {
+        expect(parsed.total_planned_minutes).toBe(4);
+      }
     });
 
     it('deve rejeitar Modo 2 se houver etapa duplicada', () => {

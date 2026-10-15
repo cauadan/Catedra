@@ -69,7 +69,7 @@ const modo2Schema = z
   .strict(CAMPO_NAO_PERMITIDO)
   .superRefine((data, ctx) => {
     const total = data.blocks.reduce((acc, b) => acc + b.planned_minutes, 0);
-    const r = validatePlannedBlocks(total, data.blocks);
+    const r = validatePlannedBlocks(total, data.blocks, 1);
     if (!r.ok) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -106,7 +106,7 @@ export const studySessionCreateSchema = z
       };
     }
     const total = data.blocks.reduce((acc, b) => acc + b.planned_minutes, 0);
-    const r = validatePlannedBlocks(total, data.blocks);
+    const r = validatePlannedBlocks(total, data.blocks, 1);
     if (!r.ok) {
       throw new Error(r.message);
     }
@@ -117,6 +117,27 @@ export const studySessionCreateSchema = z
       blocks: r.blocks,
     };
   });
+
+export const studySessionBlocksUpdateSchema = z
+  .object({
+    blocks: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1, { message: 'O ID da etapa é obrigatório.' }),
+            planned_minutes: z
+              .number({ invalid_type_error: 'Os minutos da etapa devem ser um número.' })
+              .int({ message: 'Os minutos da etapa devem ser inteiros.' })
+              .min(1, { message: 'Os minutos de cada etapa devem ser de no mínimo 1 minuto.' })
+              .max(480, { message: 'Os minutos da etapa não podem exceder 480 minutos.' }),
+          })
+          .strict(CAMPO_NAO_PERMITIDO)
+      )
+      .min(1, { message: 'Informe ao menos uma etapa para atualização.' }),
+  })
+  .strict(CAMPO_NAO_PERMITIDO);
+
+export type StudySessionBlocksUpdateInput = z.infer<typeof studySessionBlocksUpdateSchema>;
 
 // ==============================================================================
 // 2. EVENTOS DO TIMER (POST /api/study-sessions/:id/events)
