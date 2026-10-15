@@ -56,4 +56,29 @@ describe('PlannedSessionCard Component (@estudos/web)', () => {
     });
     expect(element.props.isOverlapping).toBe(true);
   });
+
+  it('deve renderizar botão "Iniciar Estudo" quando status for PLANNED e onStartStudy for fornecido', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const onStartStudy = () => {};
+    const html = renderToStaticMarkup(
+      React.createElement(PlannedSessionCard, {
+        session: { ...baseSession, status: 'PLANNED' },
+        onStartStudy,
+      })
+    );
+    expect(html).toContain('Iniciar Estudo');
+  });
+
+  it('NÃO deve renderizar botão "Iniciar Estudo" quando status for DONE', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const onStartStudy = () => {};
+    const html = renderToStaticMarkup(
+      React.createElement(PlannedSessionCard, {
+        session: { ...baseSession, status: 'DONE' },
+        onStartStudy,
+      })
+    );
+    expect(html).not.toContain('Iniciar Estudo');
+  });
 });
+
