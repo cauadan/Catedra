@@ -545,7 +545,7 @@ export class StudySessionService {
       const now = new Date();
       const activeBlockEvents = domainEvents.filter((e) => e.block_id === activeBlock.id);
 
-      if (declaredMinutes !== undefined) {
+      if (declaredMinutes !== undefined && declaredMinutes > 0) {
         const declaredSeconds = declaredMinutes * 60;
         const valRes = validateDeclaredDistraction(activeBlockEvents, declaredSeconds, now);
         if (!valRes.ok) {
@@ -639,7 +639,7 @@ export class StudySessionService {
       const activeBlock = findActiveBlock(domainBlocks, domainEvents);
       const now = new Date();
 
-      if (declaredMinutes !== undefined) {
+      if (declaredMinutes !== undefined && declaredMinutes > 0) {
         if (!activeBlock) {
           throw new AppError(
             409,
@@ -688,11 +688,50 @@ export class StudySessionService {
         },
       });
 
+      let plannedSessionId = session.planned_session_id;
+
+      // Se a sessão foi iniciada de forma avulsa (planned_session_id nulo), cria a PlannedSession correspondente como DONE
+      if (!plannedSessionId) {
+        const topic = await tx.topic.findUniqueOrThrow({
+          where: { id: session.topic_id },
+          select: { subject_id: true },
+        });
+
+        const totalPlannedMinutes = session.session_blocks.reduce(
+          (acc, b) => acc + b.planned_minutes,
+          0
+        );
+
+        const createdPlanned = await tx.plannedSession.create({
+          data: {
+            user_id: userId,
+            subject_id: topic.subject_id,
+            topic_id: session.topic_id,
+            scheduled_start: session.started_at,
+            planned_minutes: totalPlannedMinutes,
+            priority: 'MEDIUM',
+            activity_type: 'THEORY',
+            status: 'DONE',
+            planned_blocks: {
+              create: session.session_blocks.map((b) => ({
+                user_id: userId,
+                kind: b.kind,
+                planned_minutes: b.planned_minutes,
+                position: b.position,
+              })),
+            },
+          },
+        });
+
+        plannedSessionId = createdPlanned.id;
+      }
+
       await tx.studySession.update({
         where: { id },
         data: {
           status: 'FINISHED',
           ended_at: now,
+          planned_session_id: plannedSessionId,
         },
       });
 

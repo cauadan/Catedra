@@ -291,4 +291,43 @@ describe('Timer Components (@estudos/web)', () => {
     expect(html).toContain('A distração declarada excede o tempo disponível da etapa.');
     expect(html).toContain('Avançar Etapa');
   });
+
+  it('eventos START + DISTRACTION_START: exibe "Distraído", "Retomar Foco" e não exibe NaN%', () => {
+    const distractedSession: StudySessionView = {
+      ...baseSession,
+      session_events: [
+        {
+          id: 'ev-1',
+          block_id: 'b-1',
+          type: 'BLOCK_START',
+          occurred_at: '2026-10-14T10:00:00.000Z',
+        },
+        {
+          id: 'ev-2',
+          block_id: 'b-1',
+          type: 'DISTRACTION_START',
+          occurred_at: '2026-10-14T10:02:00.000Z',
+        },
+      ],
+    };
+
+    const html = renderToStaticMarkup(
+      <TimerDisplay
+        session={distractedSession}
+        referenceNow={new Date('2026-10-14T10:05:00.000Z')}
+        isPending={false}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onDistractionStart={vi.fn()}
+        onDistractionEnd={vi.fn()}
+        onAdvanceStep={vi.fn()}
+        onFinishSession={vi.fn()}
+        onCancelSession={vi.fn()}
+      />
+    );
+
+    expect(html).toContain('Distraído');
+    expect(html).toContain('Retomar Foco');
+    expect(html).not.toContain('NaN%');
+  });
 });

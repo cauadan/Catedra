@@ -442,9 +442,10 @@ export function deriveSessionState(
  * Calcula o progresso percentual de uma etapa contra o planejado (0 a 100).
  */
 export function calculateBlockProgress(effectiveSeconds: number, plannedMinutes: number): number {
-  if (plannedMinutes <= 0) return 0;
+  if (isNaN(effectiveSeconds) || plannedMinutes <= 0) return 0;
   const plannedSeconds = plannedMinutes * 60;
   const progress = (effectiveSeconds / plannedSeconds) * 100;
+  if (isNaN(progress)) return 0;
   return Math.min(100, Math.max(0, progress));
 }
 
@@ -492,8 +493,10 @@ export function calculateSessionMetrics(
     });
   }
 
-  const effectiveness = totalSum > 0 ? (effectiveSum / totalSum) * 100 : 0;
-  const adherence = plannedSum > 0 ? (effectiveSum / plannedSum) * 100 : null;
+  const rawEffectiveness = totalSum > 0 ? (effectiveSum / totalSum) * 100 : 0;
+  const effectiveness = isNaN(rawEffectiveness) ? 0 : rawEffectiveness;
+  const rawAdherence = plannedSum > 0 ? (effectiveSum / plannedSum) * 100 : null;
+  const adherence = rawAdherence !== null && isNaN(rawAdherence) ? null : rawAdherence;
   const delaySeconds = session.planned_start
     ? Math.round((session.started_at.getTime() - session.planned_start.getTime()) / 1000)
     : null;

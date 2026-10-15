@@ -30,7 +30,9 @@ export function FinishStepDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const minutes = declaredMinutes.trim() ? parseInt(declaredMinutes.trim(), 10) : undefined;
+    const trimmed = declaredMinutes.trim();
+    const rawVal = trimmed ? parseInt(trimmed, 10) : undefined;
+    const minutes = rawVal !== undefined && !isNaN(rawVal) && rawVal >= 0 ? rawVal : undefined;
     onConfirm(minutes);
   };
 
@@ -38,7 +40,7 @@ export function FinishStepDialog({
   const confirmText = mode === 'advance' ? 'Avançar Etapa' : 'Concluir Estudo';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 !m-0 !mt-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
         <div className="flex items-center gap-2 mb-3">
           <Clock className="h-5 w-5 text-blue-600" />
@@ -63,7 +65,7 @@ export function FinishStepDialog({
             <input
               id="declared_minutes"
               type="number"
-              min="1"
+              min="0"
               step="1"
               placeholder="Ex: 5"
               value={declaredMinutes}

@@ -149,7 +149,7 @@ export function SessionEvaluationModal({
   }, [session]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 !m-0 !mt-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="w-full max-w-2xl rounded-3xl bg-white p-6 md:p-8 shadow-2xl border border-slate-200 my-8">
         {!isSubmitted ? (
           <div>

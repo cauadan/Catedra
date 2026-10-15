@@ -241,38 +241,40 @@ export function Timer() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* 1. Cenário: Sessão Ativa em Andamento */}
-      {activeSession ? (
-        <TimerDisplay
-          session={activeSession}
-          referenceNow={synchronizedClock}
-          isPending={isPendingAny}
-          onPause={() => eventMutation.mutate('PAUSE')}
-          onResume={() => eventMutation.mutate('RESUME')}
-          onDistractionStart={() => eventMutation.mutate('DISTRACTION_START')}
-          onDistractionEnd={() => eventMutation.mutate('DISTRACTION_END')}
-          onAdvanceStep={handleAdvanceStepClick}
-          onFinishSession={handleFinishSessionClick}
-          onCancelSession={handleCancelSessionClick}
-        />
-      ) : pendingSession ? (
-        /* 2. Cenário: Nenhuma Sessão Ativa, mas Há Avaliação Pendente */
-        <PendingEvaluationBanner
-          onOpenEvaluation={() => {
-            setEvaluatingSession(pendingSession);
-            setEvaluationModalOpen(true);
-          }}
-        />
-      ) : (
-        /* 3. Cenário: Livre — Formulário de Estudo Avulso */
-        <AdHocSessionForm
-          subjects={subjects}
-          topics={topics}
-          isPending={createAdHocMutation.isPending}
-          onSubmit={(payload) => createAdHocMutation.mutate(payload)}
-        />
-      )}
+    <>
+      <div className="space-y-8">
+        {/* 1. Cenário: Sessão Ativa em Andamento */}
+        {activeSession ? (
+          <TimerDisplay
+            session={activeSession}
+            referenceNow={synchronizedClock}
+            isPending={isPendingAny}
+            onPause={() => eventMutation.mutate('PAUSE')}
+            onResume={() => eventMutation.mutate('RESUME')}
+            onDistractionStart={() => eventMutation.mutate('DISTRACTION_START')}
+            onDistractionEnd={() => eventMutation.mutate('DISTRACTION_END')}
+            onAdvanceStep={handleAdvanceStepClick}
+            onFinishSession={handleFinishSessionClick}
+            onCancelSession={handleCancelSessionClick}
+          />
+        ) : pendingSession ? (
+          /* 2. Cenário: Nenhuma Sessão Ativa, mas Há Avaliação Pendente */
+          <PendingEvaluationBanner
+            onOpenEvaluation={() => {
+              setEvaluatingSession(pendingSession);
+              setEvaluationModalOpen(true);
+            }}
+          />
+        ) : (
+          /* 3. Cenário: Livre — Formulário de Estudo Avulso */
+          <AdHocSessionForm
+            subjects={subjects}
+            topics={topics}
+            isPending={createAdHocMutation.isPending}
+            onSubmit={(payload) => createAdHocMutation.mutate(payload)}
+          />
+        )}
+      </div>
 
       {/* Diálogo de Avanço de Etapa / Conclusão de Sessão com Distração Opcional */}
       <FinishStepDialog
@@ -301,6 +303,6 @@ export function Timer() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

@@ -162,11 +162,22 @@ describe('Study Session API: Timer Flow, Blocks, Finish and Cancel (@estudos/api
     const finishEv = finished.session_events.find((e: any) => e.type === 'SESSION_FINISH');
     expect(finishEv).toBeDefined();
 
-    // Métricas: total >= 600s, efetivo = total - 180s
+    // Métricas: total >= 600s, efetivo = total - 180s - pausa do bloco 1
     expect(finished.metrics.totalSeconds).toBeGreaterThanOrEqual(600);
     expect(finished.metrics.effectiveSeconds).toBe(
-      finished.metrics.totalSeconds - 180
+      finished.metrics.totalSeconds - 180 - finished.metrics.blocks[0].pausedSeconds
     );
+
+    // Melhoria P5: sessão avulsa concluída gera PlannedSession DONE vinculada
+    expect(finished.planned_session_id).toBeTruthy();
+    const createdPlanned = await prisma.plannedSession.findUnique({
+      where: { id: finished.planned_session_id },
+      include: { planned_blocks: true },
+    });
+    expect(createdPlanned).toBeDefined();
+    expect(createdPlanned?.status).toBe('DONE');
+    expect(createdPlanned?.planned_minutes).toBe(30);
+    expect(createdPlanned?.planned_blocks).toHaveLength(2);
 
     // Tentativa de mutação em sessão FINISHED -> 409 SESSION_NOT_IN_PROGRESS
     const resMut = await request(app)
@@ -267,5 +278,46 @@ describe('Study Session API: Timer Flow, Blocks, Finish and Cancel (@estudos/api
       .post(`/api/study-sessions/${session!.id}/cancel`)
       .set('Cookie', user.cookie);
     expect(res4.status).toBe(404);
+  });
+
+  it('deve aceitar declared_minutes igual a 0 no avanço e na conclusão sem criar evento DISTRACTION_DECLARED', async () => {
+    const zeroUser = await createStudyUser('ZeroUser');
+    try {
+      // 1. Criar nova sessão avulsa
+      const resCreate = await request(app)
+        .post('/api/study-sessions')
+        .set('Cookie', zeroUser.cookie)
+        .send({
+          topic_id: zeroUser.topic.id,
+          blocks: [
+            { kind: 'REVIEW', planned_minutes: 15 },
+            { kind: 'PRACTICE', planned_minutes: 15 },
+          ],
+        });
+      expect(resCreate.status).toBe(201);
+      const session = resCreate.body.data;
+      const b1 = session.session_blocks[0];
+
+      // 2. Avançar etapa com declared_minutes: 0 -> sucesso sem DISTRACTION_DECLARED
+      const resAdvance = await request(app)
+        .post(`/api/study-sessions/${session.id}/blocks/${b1.id}/finish`)
+        .set('Cookie', zeroUser.cookie)
+        .send({ declared_minutes: 0 });
+      expect(resAdvance.status).toBe(200);
+      const eventsAfterAdvance = resAdvance.body.data.session_events;
+      expect(eventsAfterAdvance.some((e: any) => e.type === 'DISTRACTION_DECLARED')).toBe(false);
+
+      // 3. Concluir com declared_minutes: 0 -> sucesso sem DISTRACTION_DECLARED
+      const resFinish = await request(app)
+        .post(`/api/study-sessions/${session.id}/finish`)
+        .set('Cookie', zeroUser.cookie)
+        .send({ declared_minutes: 0 });
+      expect(resFinish.status).toBe(200);
+      const eventsAfterFinish = resFinish.body.data.session_events;
+      expect(eventsAfterFinish.some((e: any) => e.type === 'DISTRACTION_DECLARED')).toBe(false);
+      expect(resFinish.body.data.status).toBe('FINISHED');
+    } finally {
+      await prisma.user.delete({ where: { id: zeroUser.user.id } });
+    }
   });
 });

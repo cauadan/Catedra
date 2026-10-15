@@ -145,7 +145,7 @@ export const declaredDistractionSchema = z
         invalid_type_error: 'Os minutos de distração devem ser um número.',
       })
       .int({ message: 'Os minutos de distração devem ser um número inteiro.' })
-      .min(1, { message: 'Os minutos de distração devem ser de no mínimo 1 minuto.' })
+      .min(0, { message: 'Os minutos de distração não podem ser negativos.' })
       .optional(),
   })
   .strict(CAMPO_NAO_PERMITIDO);

@@ -75,9 +75,10 @@ export function TimerDisplay({
     : { totalSeconds: 0, pausedSeconds: 0, distractedRealtimeSeconds: 0, distractedDeclaredSeconds: 0, effectiveSeconds: 0 };
 
   const effectiveSeconds = blockTimes.effectiveSeconds;
-  const percentComplete = activeBlock
+  const rawPercent = activeBlock
     ? calculateBlockProgress(effectiveSeconds, activeBlock.planned_minutes)
     : 0;
+  const percentComplete = isNaN(rawPercent) ? 0 : rawPercent;
 
   const sessionMetrics = calculateSessionMetrics(
     {
@@ -271,7 +272,7 @@ export function TimerDisplay({
                 <span>Distração</span>
               </button>
             </>
-          ) : state === 'PAUSED' || state === 'DISTRACTED' ? (
+          ) : state === 'PAUSED' ? (
             <button
               type="button"
               onClick={onResume}
@@ -279,7 +280,17 @@ export function TimerDisplay({
               className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-50"
             >
               <Play className="h-5 w-5 fill-current" />
-              <span>Retomar Estudo</span>
+              <span>Retomar</span>
+            </button>
+          ) : state === 'DISTRACTED' ? (
+            <button
+              type="button"
+              onClick={onDistractionEnd}
+              disabled={isPending}
+              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-50"
+            >
+              <Play className="h-5 w-5 fill-current" />
+              <span>Retomar Foco</span>
             </button>
           ) : null}
 

@@ -98,12 +98,13 @@ describe('Study Session Zod Schemas (@estudos/domain/study-session)', () => {
       expect(declaredDistractionSchema.parse({})).toEqual({});
     });
 
-    it('deve aceitar declared_minutes inteiro >= 1', () => {
+    it('deve aceitar declared_minutes inteiro >= 0', () => {
+      expect(declaredDistractionSchema.parse({ declared_minutes: 0 })).toEqual({ declared_minutes: 0 });
       expect(declaredDistractionSchema.parse({ declared_minutes: 5 })).toEqual({ declared_minutes: 5 });
     });
 
-    it('deve rejeitar declared_minutes menor que 1 ou não inteiro', () => {
-      expect(() => declaredDistractionSchema.parse({ declared_minutes: 0 })).toThrow();
+    it('deve rejeitar declared_minutes negativo ou não inteiro', () => {
+      expect(() => declaredDistractionSchema.parse({ declared_minutes: -1 })).toThrow();
       expect(() => declaredDistractionSchema.parse({ declared_minutes: 2.5 })).toThrow();
     });
 

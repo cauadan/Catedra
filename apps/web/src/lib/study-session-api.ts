@@ -20,11 +20,13 @@ export interface ApiSessionBlock {
 
 export interface ApiSessionEvent {
   id: string;
-  study_session_id: string;
+  study_session_id?: string;
   block_id: string | null;
   type: SessionEventTypeDTO;
-  payload: any;
-  created_at: string;
+  occurred_at: string;
+  declared_seconds?: number | null;
+  created_at?: string;
+  payload?: any;
 }
 
 export interface ApiSessionEvaluation {
@@ -180,13 +182,18 @@ export function computeClockOffsetMs(
 }
 
 /**
- * Converte eventos da API (com created_at ISO string) para o formato puro de DTOs do domínio (Date).
+ * Converte eventos da API (com occurred_at ou created_at ISO string) para o formato puro de DTOs do domínio (Date).
  */
 export function toDomainEvents(events: ApiSessionEvent[]): SessionEventDTO[] {
-  return events.map((event) => ({
-    type: event.type,
-    block_id: event.block_id,
-    occurred_at: new Date(event.created_at),
-    declared_seconds: event.payload?.declared_seconds ?? null,
-  }));
+  return events.map((event) => {
+    const rawDate = event.occurred_at || event.created_at;
+    const dateObj = rawDate ? new Date(rawDate) : new Date();
+    const validDate = isNaN(dateObj.getTime()) ? new Date() : dateObj;
+    return {
+      type: event.type,
+      block_id: event.block_id,
+      occurred_at: validDate,
+      declared_seconds: event.declared_seconds ?? event.payload?.declared_seconds ?? null,
+    };
+  });
 }
