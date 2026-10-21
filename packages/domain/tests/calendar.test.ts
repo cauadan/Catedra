@@ -8,6 +8,12 @@ import {
   utcToLocalTime,
   getDayWindowUtc,
   getWeekWindowUtc,
+  parseWeekStartsOn,
+  getMonthWindowUtc,
+  getRolling30DaysWindowUtc,
+  normalizeGoalPeriodStart,
+  getPreviousGoalPeriodStart,
+  getGoalPeriodWindowUtc,
 } from '../src/calendar';
 
 const HORA = 60 * 60 * 1000;
@@ -125,6 +131,16 @@ describe('getWeekWindowUtc — virada de semana', () => {
     expect(semana.endUtc.toISOString()).toBe('2026-10-19T05:00:00.000Z');
   });
 
+  it('suporta weekStartsOn = 0 (domingo)', () => {
+    const semanaDom = getWeekWindowUtc('2026-10-14', tz, 0);
+    expect(semanaDom.days).toEqual([
+      '2026-10-11', '2026-10-12', '2026-10-13', '2026-10-14',
+      '2026-10-15', '2026-10-16', '2026-10-17',
+    ]);
+    expect(semanaDom.startUtc.toISOString()).toBe('2026-10-11T05:00:00.000Z');
+    expect(semanaDom.endUtc.toISOString()).toBe('2026-10-18T05:00:00.000Z');
+  });
+
   it('domingo 23:59 pertence à semana corrente; segunda 00:00 pertence à próxima', () => {
     const semana = getWeekWindowUtc('2026-10-18', tz); // domingo
     const domingo = localDateTimeToUtc('2026-10-18T23:59', tz);
@@ -168,23 +184,12 @@ describe('America/New_York — horário de verão (DST) 2026', () => {
     }
   });
 
-  /**
-   * Horário inexistente: 02:30 de 2026-03-08 não existe em Nova York (02:00 → 03:00).
-   * Política determinística (equivalente ao `disambiguation: 'compatible'` do Temporal):
-   * aplica o offset ANTERIOR à transição (EST, UTC-5) → 07:30Z, exibido como 03:30 EDT.
-   * Obs.: o `fromZonedTime` do date-fns-tz NÃO foi usado aqui porque seu resultado em DST
-   * variava conforme o fuso do processo (detectado pelo `test:tz`).
-   */
   it('horário inexistente 2026-03-08T02:30 avança para 07:30Z (03:30 EDT)', () => {
     const r = localDateTimeToUtc('2026-03-08T02:30', tz);
     expect(r.toISOString()).toBe('2026-03-08T07:30:00.000Z');
     expect(utcToLocalTime(r, tz)).toBe('03:30');
   });
 
-  /**
-   * Horário ambíguo: 01:30 de 2026-11-01 ocorre duas vezes (EDT e depois EST).
-   * Política determinística: escolhe a PRIMEIRA ocorrência (EDT, UTC-4) → 05:30Z.
-   */
   it('horário ambíguo 2026-11-01T01:30 resolve para a primeira ocorrência (05:30Z)', () => {
     const r = localDateTimeToUtc('2026-11-01T01:30', tz);
     expect(r.toISOString()).toBe('2026-11-01T05:30:00.000Z');
@@ -217,5 +222,112 @@ describe('Validação de entrada das conversões', () => {
 
   it('getDayWindowUtc lança erro para data inválida', () => {
     expect(() => getDayWindowUtc('2026-04-31', 'America/New_York')).toThrow();
+  });
+});
+
+describe('parseWeekStartsOn', () => {
+  it('converte SUNDAY ou 0 para 0 e MONDAY ou 1 (ou vazio) para 1', () => {
+    expect(parseWeekStartsOn('SUNDAY')).toBe(0);
+    expect(parseWeekStartsOn(0)).toBe(0);
+    expect(parseWeekStartsOn('0')).toBe(0);
+    expect(parseWeekStartsOn('MONDAY')).toBe(1);
+    expect(parseWeekStartsOn(1)).toBe(1);
+    expect(parseWeekStartsOn('1')).toBe(1);
+    expect(parseWeekStartsOn(null)).toBe(1);
+    expect(parseWeekStartsOn(undefined)).toBe(1);
+  });
+});
+
+describe('getMonthWindowUtc', () => {
+  const tz = 'America/Rio_Branco';
+
+  it('calcula janela de mês civil normal e ano bissexto (fevereiro 2026 vs 2028)', () => {
+    const fev2026 = getMonthWindowUtc('2026-02-15', tz);
+    expect(fev2026.periodStartLocalDate).toBe('2026-02-01');
+    expect(fev2026.startLocalDate).toBe('2026-02-01');
+    expect(fev2026.endLocalDate).toBe('2026-02-28');
+    expect(fev2026.days).toHaveLength(28);
+    expect(fev2026.startUtc.toISOString()).toBe('2026-02-01T05:00:00.000Z');
+    expect(fev2026.endUtc.toISOString()).toBe('2026-03-01T05:00:00.000Z');
+
+    const fev2028 = getMonthWindowUtc('2028-02-15', tz);
+    expect(fev2028.periodStartLocalDate).toBe('2028-02-01');
+    expect(fev2028.startLocalDate).toBe('2028-02-01');
+    expect(fev2028.endLocalDate).toBe('2028-02-29');
+    expect(fev2028.days).toHaveLength(29);
+    expect(fev2028.endUtc.toISOString()).toBe('2028-03-01T05:00:00.000Z');
+  });
+
+  it('sessão iniciada às 23:50 de 2026-10-31 em America/Rio_Branco (2026-11-01T04:50Z) pertence a outubro de 2026', () => {
+    const out2026 = getMonthWindowUtc('2026-10-15', tz);
+    const nov2026 = getMonthWindowUtc('2026-11-15', tz);
+    const sessaoUtc = localDateTimeToUtc('2026-10-31T23:50', tz);
+    expect(sessaoUtc.toISOString()).toBe('2026-11-01T04:50:00.000Z');
+    expect(sessaoUtc >= out2026.startUtc && sessaoUtc < out2026.endUtc).toBe(true);
+    expect(sessaoUtc >= nov2026.startUtc && sessaoUtc < nov2026.endUtc).toBe(false);
+  });
+});
+
+describe('getRolling30DaysWindowUtc', () => {
+  it('retorna janela de 30 dias corridos cruzando virada de ano [anchorDate - 29 dias, anchorDate]', () => {
+    const w = getRolling30DaysWindowUtc('2027-01-10', 'America/Rio_Branco');
+    expect(w.startLocalDate).toBe('2026-12-12');
+    expect(w.endLocalDate).toBe('2027-01-10');
+    expect(w.days).toHaveLength(30);
+    expect(w.days[0]).toBe('2026-12-12');
+    expect(w.days[29]).toBe('2027-01-10');
+    expect(w.startUtc.toISOString()).toBe('2026-12-12T05:00:00.000Z');
+    expect(w.endUtc.toISOString()).toBe('2027-01-11T05:00:00.000Z');
+  });
+
+  it('atravessa transição de DST em America/New_York mantendo exatamente 30 datas locais', () => {
+    const w = getRolling30DaysWindowUtc('2026-11-10', 'America/New_York');
+    expect(w.startLocalDate).toBe('2026-10-12');
+    expect(w.endLocalDate).toBe('2026-11-10');
+    expect(w.days).toHaveLength(30);
+    expect(w.startUtc.toISOString()).toBe('2026-10-12T04:00:00.000Z'); // EDT (UTC-4)
+    expect(w.endUtc.toISOString()).toBe('2026-11-11T05:00:00.000Z');   // EST (UTC-5)
+  });
+});
+
+describe('normalizeGoalPeriodStart, getPreviousGoalPeriodStart e getGoalPeriodWindowUtc', () => {
+  const tz = 'America/Rio_Branco';
+
+  it('normaliza início do período para DAY, WEEK e MONTH', () => {
+    expect(normalizeGoalPeriodStart('2026-10-30', 'DAY', 1)).toBe('2026-10-30');
+    expect(normalizeGoalPeriodStart('2026-10-30', 'WEEK', 1)).toBe('2026-10-26');
+    expect(normalizeGoalPeriodStart('2026-10-30', 'WEEK', 0)).toBe('2026-10-25');
+    expect(normalizeGoalPeriodStart('2026-10-30', 'MONTH', 1)).toBe('2026-10-01');
+  });
+
+  it('calcula período imediatamente anterior para DAY (-1d), WEEK (-7d) e MONTH (mês civil anterior)', () => {
+    expect(getPreviousGoalPeriodStart('2026-10-15', 'DAY', 1)).toBe('2026-10-14');
+    expect(getPreviousGoalPeriodStart('2026-10-15', 'WEEK', 1)).toBe('2026-10-05');
+    expect(getPreviousGoalPeriodStart('2026-10-15', 'MONTH', 1)).toBe('2026-09-01');
+    expect(getPreviousGoalPeriodStart('2026-01-20', 'MONTH', 1)).toBe('2025-12-01');
+  });
+
+  it('retorna janela completa para WEEK cruzando virada de mês (2026-10-26 a 2026-11-01)', () => {
+    const w = getGoalPeriodWindowUtc('2026-10-30', 'WEEK', tz, 1);
+    expect(w.startLocalDate).toBe('2026-10-26');
+    expect(w.endLocalDate).toBe('2026-11-01');
+    expect(w.days).toEqual([
+      '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29',
+      '2026-10-30', '2026-10-31', '2026-11-01',
+    ]);
+    expect(w.startUtc.toISOString()).toBe('2026-10-26T05:00:00.000Z');
+    expect(w.endUtc.toISOString()).toBe('2026-11-02T05:00:00.000Z');
+  });
+
+  it('retorna janela para DAY e MONTH', () => {
+    const dayW = getGoalPeriodWindowUtc('2026-10-30', 'DAY', tz, 1);
+    expect(dayW.startLocalDate).toBe('2026-10-30');
+    expect(dayW.endLocalDate).toBe('2026-10-30');
+    expect(dayW.days).toEqual(['2026-10-30']);
+
+    const monthW = getGoalPeriodWindowUtc('2026-10-30', 'MONTH', tz, 1);
+    expect(monthW.startLocalDate).toBe('2026-10-01');
+    expect(monthW.endLocalDate).toBe('2026-10-31');
+    expect(monthW.days).toHaveLength(31);
   });
 });

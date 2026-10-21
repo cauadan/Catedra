@@ -13,6 +13,8 @@ const LOCAL_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const LOCAL_DATE_TIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
+export type GoalPeriod = 'DAY' | 'WEEK' | 'MONTH';
+
 function isRealCalendarDate(y: number, m: number, d: number): boolean {
   if (m < 1 || m > 12 || d < 1) return false;
   const dt = new Date(Date.UTC(y, m - 1, d));
@@ -62,6 +64,17 @@ function localDateWeekday(localDate: string): number {
 }
 
 /**
+ * Converte a configuração de início de semana do usuário (`'MONDAY'`, `'SUNDAY'`, `1`, `0`)
+ * para o formato numérico (`1` = segunda-feira, `0` = domingo). Padrão: `1` (segunda-feira).
+ */
+export function parseWeekStartsOn(value?: string | number | null): 0 | 1 {
+  if (value === 0 || value === '0' || value === 'SUNDAY') {
+    return 0;
+  }
+  return 1;
+}
+
+/**
  * Offset (ms) do `timezone` no instante `instantMs`: (horário de parede como se fosse UTC) − instante.
  * Usa apenas `Intl.DateTimeFormat` com `timeZone` explícito — não depende do fuso do processo.
  */
@@ -91,16 +104,6 @@ function getTimezoneOffsetMs(timezone: string, instantMs: number): number {
 
 /**
  * Converte `YYYY-MM-DDTHH:mm` (horário de parede no `timezone`) para um instante UTC.
- *
- * Política determinística em transições de horário de verão (equivale ao
- * `disambiguation: 'compatible'` da proposta Temporal; coberta por testes com America/New_York):
- * - Horário INEXISTENTE (salto, ex.: 2026-03-08T02:30): aplica o offset ANTERIOR à transição,
- *   resultando em 07:30Z — exibido de volta como 03:30 EDT (avança 1h).
- * - Horário AMBÍGUO (recuo, ex.: 2026-11-01T01:30): escolhe a PRIMEIRA ocorrência (05:30Z, EDT).
- * A API aceita esse resultado como está.
- *
- * Por que não `fromZonedTime` (date-fns-tz): nos casos de DST o resultado dele variava conforme o
- * fuso do processo (detectado pelo `npm run test:tz` em Asia/Tokyo), violando a regra de ouro.
  */
 export function localDateTimeToUtc(localIsoWithoutTz: string, timezone: string): Date {
   if (!isValidLocalDateTime(localIsoWithoutTz)) {
@@ -126,10 +129,8 @@ export function localDateTimeToUtc(localIsoWithoutTz: string, timezone: string):
     (t) => t + getTimezoneOffsetMs(timezone, t) === wallMs
   );
   if (candidates.length > 0) {
-    // Um candidato: horário normal. Dois distintos: ambíguo → primeira ocorrência.
     return new Date(Math.min(...candidates));
   }
-  // Nenhum candidato: horário inexistente → offset anterior à transição.
   return new Date(wallMs - offsetBefore);
 }
 
@@ -153,25 +154,185 @@ export function getDayWindowUtc(localDate: string, timezone: string): { startUtc
 }
 
 /**
- * Janela semiaberta `[startUtc, endUtc)` da semana local (segunda 00:00 até a segunda seguinte
- * 00:00) que contém `localDate`, e os 7 dias `YYYY-MM-DD` de segunda a domingo.
- * `weekStartsOn` só aceita `1` (segunda-feira), conforme decisão do projeto.
+ * Janela semiaberta `[startUtc, endUtc)` da semana local que contém `localDate`,
+ * e os 7 dias `YYYY-MM-DD`.
+ * `weekStartsOn` aceita `1` (segunda-feira, padrão) ou `0` (domingo).
  */
 export function getWeekWindowUtc(
   localDate: string,
   timezone: string,
-  weekStartsOn: 1 = 1
+  weekStartsOn: number = 1
 ): { startUtc: Date; endUtc: Date; days: string[] } {
   assertLocalDate(localDate);
-  if (weekStartsOn !== 1) {
-    throw new RangeError('Apenas semanas iniciando na segunda-feira são suportadas.');
+  if (weekStartsOn !== 1 && weekStartsOn !== 0) {
+    throw new RangeError('Apenas semanas iniciando na segunda-feira (1) ou no domingo (0) são suportadas.');
   }
-  const offsetToMonday = (localDateWeekday(localDate) + 6) % 7;
-  const monday = addDaysToLocalDate(localDate, -offsetToMonday);
-  const days = Array.from({ length: 7 }, (_, i) => addDaysToLocalDate(monday, i));
+  const weekday = localDateWeekday(localDate);
+  const offsetToStart = weekStartsOn === 1 ? (weekday + 6) % 7 : weekday;
+  const startDay = addDaysToLocalDate(localDate, -offsetToStart);
+  const days = Array.from({ length: 7 }, (_, i) => addDaysToLocalDate(startDay, i));
   return {
-    startUtc: localDateTimeToUtc(`${monday}T00:00`, timezone),
-    endUtc: localDateTimeToUtc(`${addDaysToLocalDate(monday, 7)}T00:00`, timezone),
+    startUtc: localDateTimeToUtc(`${startDay}T00:00`, timezone),
+    endUtc: localDateTimeToUtc(`${addDaysToLocalDate(startDay, 7)}T00:00`, timezone),
     days,
   };
+}
+
+/**
+ * Janela semiaberta `[startUtc, endUtc)` do mês civil local que contém `localDate`.
+ */
+export function getMonthWindowUtc(
+  localDate: string,
+  timezone: string
+): {
+  startUtc: Date;
+  endUtc: Date;
+  periodStartLocalDate: string;
+  startLocalDate: string;
+  endLocalDate: string;
+  daysCount: number;
+  days: string[];
+} {
+  assertLocalDate(localDate);
+  const [y, m] = localDate.split('-').map(Number);
+  const startLocalDate = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-01`;
+  const lastDayDate = new Date(Date.UTC(y, m, 0));
+  const daysCount = lastDayDate.getUTCDate();
+  const endLocalDate = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(daysCount).padStart(2, '0')}`;
+  const days = Array.from({ length: daysCount }, (_, i) => addDaysToLocalDate(startLocalDate, i));
+  const nextMonthStartLocalDate = addDaysToLocalDate(endLocalDate, 1);
+
+  return {
+    startUtc: localDateTimeToUtc(`${startLocalDate}T00:00`, timezone),
+    endUtc: localDateTimeToUtc(`${nextMonthStartLocalDate}T00:00`, timezone),
+    periodStartLocalDate: startLocalDate,
+    startLocalDate,
+    endLocalDate,
+    daysCount,
+    days,
+  };
+}
+
+/**
+ * Janela semiaberta `[startUtc, endUtc)` dos últimos 30 dias corridos ancorados em `referenceLocalDate`:
+ * de `[referenceLocalDate - 29 dias, referenceLocalDate]` (inclusive, totalizando 30 dias).
+ */
+export function getRolling30DaysWindowUtc(
+  referenceLocalDate: string,
+  timezone: string
+): {
+  startUtc: Date;
+  endUtc: Date;
+  startLocalDate: string;
+  endLocalDate: string;
+  daysCount: 30;
+  days: string[];
+} {
+  assertLocalDate(referenceLocalDate);
+  const startLocalDate = addDaysToLocalDate(referenceLocalDate, -29);
+  const endLocalDate = referenceLocalDate;
+  const days = Array.from({ length: 30 }, (_, i) => addDaysToLocalDate(startLocalDate, i));
+  const dayAfterEnd = addDaysToLocalDate(endLocalDate, 1);
+
+  return {
+    startUtc: localDateTimeToUtc(`${startLocalDate}T00:00`, timezone),
+    endUtc: localDateTimeToUtc(`${dayAfterEnd}T00:00`, timezone),
+    startLocalDate,
+    endLocalDate,
+    daysCount: 30,
+    days,
+  };
+}
+
+/**
+ * Normaliza qualquer data local `YYYY-MM-DD` para a data de início oficial do período da meta:
+ * - `DAY`: a própria `localDate`;
+ * - `WEEK`: o primeiro dia da semana (segunda-feira se `weekStartsOn === 1`, domingo se `0`) que contém `localDate`;
+ * - `MONTH`: o dia `YYYY-MM-01` do mês de `localDate`.
+ */
+export function normalizeGoalPeriodStart(
+  localDate: string,
+  period: GoalPeriod,
+  weekStartsOn: number = 1
+): string {
+  assertLocalDate(localDate);
+  if (period === 'DAY') {
+    return localDate;
+  }
+  if (period === 'WEEK') {
+    if (weekStartsOn !== 1 && weekStartsOn !== 0) {
+      throw new RangeError('Apenas semanas iniciando na segunda-feira (1) ou no domingo (0) são suportadas.');
+    }
+    const weekday = localDateWeekday(localDate);
+    const offsetToStart = weekStartsOn === 1 ? (weekday + 6) % 7 : weekday;
+    return addDaysToLocalDate(localDate, -offsetToStart);
+  }
+  if (period === 'MONTH') {
+    return `${localDate.slice(0, 7)}-01`;
+  }
+  throw new RangeError(`Período de meta inválido: "${String(period)}".`);
+}
+
+/**
+ * Retorna o `period_start_local_date` normalizado do período imediatamente anterior:
+ * - `DAY`: `-1` dia;
+ * - `WEEK`: `-7` dias a partir do início normalizado da semana;
+ * - `MONTH`: dia `01` do mês civil anterior.
+ */
+export function getPreviousGoalPeriodStart(
+  periodStartLocalDate: string,
+  period: GoalPeriod,
+  weekStartsOn: number = 1
+): string {
+  const normalized = normalizeGoalPeriodStart(periodStartLocalDate, period, weekStartsOn);
+  if (period === 'DAY') {
+    return addDaysToLocalDate(normalized, -1);
+  }
+  if (period === 'WEEK') {
+    return addDaysToLocalDate(normalized, -7);
+  }
+  const lastDayPrevMonth = addDaysToLocalDate(normalized, -1);
+  return `${lastDayPrevMonth.slice(0, 7)}-01`;
+}
+
+/**
+ * Calcula a janela semiaberta `[startUtc, endUtc)` e os dias locais para um período de meta (`DAY`, `WEEK`, `MONTH`).
+ */
+export function getGoalPeriodWindowUtc(
+  periodStartLocalDate: string,
+  period: GoalPeriod,
+  timezone: string,
+  weekStartsOn: number = 1
+): {
+  startUtc: Date;
+  endUtc: Date;
+  startLocalDate: string;
+  endLocalDate: string;
+  daysCount: number;
+  days: string[];
+} {
+  const normalizedStart = normalizeGoalPeriodStart(periodStartLocalDate, period, weekStartsOn);
+  if (period === 'DAY') {
+    const w = getDayWindowUtc(normalizedStart, timezone);
+    return {
+      startUtc: w.startUtc,
+      endUtc: w.endUtc,
+      startLocalDate: normalizedStart,
+      endLocalDate: normalizedStart,
+      daysCount: 1,
+      days: [normalizedStart],
+    };
+  }
+  if (period === 'WEEK') {
+    const w = getWeekWindowUtc(normalizedStart, timezone, weekStartsOn);
+    return {
+      startUtc: w.startUtc,
+      endUtc: w.endUtc,
+      startLocalDate: w.days[0],
+      endLocalDate: w.days[6],
+      daysCount: 7,
+      days: w.days,
+    };
+  }
+  return getMonthWindowUtc(normalizedStart, timezone);
 }
