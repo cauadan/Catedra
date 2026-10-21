@@ -1,8 +1,10 @@
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../utils/errors.js';
 import {
+  buildClassificationIndex,
   calculateGoalProgress,
   calculatePeriodStatistics,
+  getClassificationWindow,
   getDayWindowUtc,
   getGoalPeriodWindowUtc,
   getMonthWindowUtc,
@@ -20,6 +22,7 @@ import {
   type StatisticsPlannedSessionInput,
   type StatisticsSubjectInput,
   type StatisticsTopicInput,
+  type UnderstandingLevelDTO,
 } from '@estudos/domain';
 import { type GoalWithProgressView } from './goal.service.js';
 import { toSessionView, type StudySessionView } from './study-session.service.js';
@@ -46,7 +49,7 @@ export class DashboardService {
   /**
    * GET /api/dashboard?date=YYYY-MM-DD
    * Carrega todos os dados necessários em lote único sobre a janela unificada
-   * `[min(monthStartUtc, weekStartUtc, rolling30StartUtc), max(monthEndUtc, weekEndUtc, rolling30EndUtc))`
+   * `[min(monthStartUtc, weekStartUtc, rolling30StartUtc, classStartUtc), max(monthEndUtc, weekEndUtc, rolling30EndUtc, classEndUtc))`
    * e fatia em memória sem qualquer query adicional por dia, sessão ou meta (zero N+1).
    */
   public static async getDashboard(userId: string, query: DashboardQueryInput) {
@@ -68,18 +71,25 @@ export class DashboardService {
     const weekWindow = getWeekWindowUtc(referenceDate, timezone, weekStartsOn);
     const monthWindow = getMonthWindowUtc(referenceDate, timezone);
     const rolling30Window = getRolling30DaysWindowUtc(referenceDate, timezone);
+    const classificationWindow = getClassificationWindow(
+      referenceDate,
+      referenceNow,
+      timezone
+    );
 
     const minStartMs = Math.min(
       dayWindow.startUtc.getTime(),
       weekWindow.startUtc.getTime(),
       monthWindow.startUtc.getTime(),
-      rolling30Window.startUtc.getTime()
+      rolling30Window.startUtc.getTime(),
+      classificationWindow.startUtc.getTime()
     );
     const maxEndMs = Math.max(
       dayWindow.endUtc.getTime(),
       weekWindow.endUtc.getTime(),
       monthWindow.endUtc.getTime(),
-      rolling30Window.endUtc.getTime()
+      rolling30Window.endUtc.getTime(),
+      classificationWindow.endUtc.getTime()
     );
 
     const broadStartUtc = new Date(minStartMs);
@@ -189,6 +199,11 @@ export class DashboardService {
               correct: true,
             },
           },
+          evaluation: {
+            select: {
+              understanding: true,
+            },
+          },
         },
       }),
       prisma.studySession.findFirst({
@@ -272,6 +287,9 @@ export class DashboardService {
         questions: pr.questions,
         correct: pr.correct,
       })),
+      evaluation: ss.evaluation
+        ? { understanding: ss.evaluation.understanding as UnderstandingLevelDTO }
+        : null,
     }));
 
     // 1. Estatísticas de Hoje, Semana Atual, Mês Atual e Últimos 30 Dias (fatiadas em memória)
@@ -284,6 +302,7 @@ export class DashboardService {
       subjects: rawSubjects,
       topics: rawTopics,
       referenceNow,
+      classificationWindow,
     });
 
     const weekSummary = calculatePeriodStatistics({
@@ -317,7 +336,35 @@ export class DashboardService {
       subjects: rawSubjects,
       topics: rawTopics,
       referenceNow,
+      classificationWindow,
     });
+
+    // Contagem de classificação (apenas assuntos ativos com atividade na janela de 30 dias)
+    const classIndex = buildClassificationIndex({
+      sessions: studySessions,
+      subjects: rawSubjects,
+      topics: rawTopics,
+      window: classificationWindow,
+    });
+
+    const classificationSummary = {
+      strongCount: 0,
+      regularCount: 0,
+      weakCount: 0,
+      insufficientCount: 0,
+    };
+
+    for (const [topicId, c] of classIndex.byTopic.entries()) {
+      const top = topicById.get(topicId);
+      if (!top || top.archived) continue;
+      const subj = subjectById.get(top.subject_id);
+      if (!subj || subj.archived) continue;
+
+      if (c.classification === 'STRONG') classificationSummary.strongCount += 1;
+      else if (c.classification === 'REGULAR') classificationSummary.regularCount += 1;
+      else if (c.classification === 'WEAK') classificationSummary.weakCount += 1;
+      else classificationSummary.insufficientCount += 1;
+    }
 
     // 2. Sessões planejadas de hoje e próxima sessão (nextSession)
     const mapPlannedCard = (
@@ -477,6 +524,11 @@ export class DashboardService {
         dailySeries: rolling30Stats.dailySeries,
       },
       subjectProgress: rolling30Stats.bySubject,
+      classificationSummary,
+      classificationWindow: {
+        windowStartLocalDate: classificationWindow.windowStartLocalDate,
+        windowEndLocalDate: classificationWindow.windowEndLocalDate,
+      },
     };
   }
 }

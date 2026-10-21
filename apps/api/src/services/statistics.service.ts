@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { AppError } from '../utils/errors.js';
 import {
   calculatePeriodStatistics,
+  getClassificationWindow,
   getDayWindowUtc,
   getMonthWindowUtc,
   getRolling30DaysWindowUtc,
@@ -14,6 +15,7 @@ import {
   type StatisticsQueryInput,
   type StatisticsSubjectInput,
   type StatisticsTopicInput,
+  type UnderstandingLevelDTO,
 } from '@estudos/domain';
 
 export interface StatisticsResponseView extends PeriodStatisticsResult {
@@ -107,6 +109,20 @@ export class StatisticsService {
       days = w.days;
     }
 
+    const periodEndLocalDate = days[days.length - 1];
+    const classificationWindow = getClassificationWindow(
+      periodEndLocalDate,
+      referenceNow,
+      timezone
+    );
+
+    const broadStartUtc = new Date(
+      Math.min(startUtc.getTime(), classificationWindow.startUtc.getTime())
+    );
+    const broadEndUtc = new Date(
+      Math.max(endUtc.getTime(), classificationWindow.endUtc.getTime())
+    );
+
     const [rawPlanned, rawStudy] = await Promise.all([
       prisma.plannedSession.findMany({
         where: {
@@ -131,8 +147,8 @@ export class StatisticsService {
           user_id: userId,
           status: 'FINISHED',
           started_at: {
-            gte: startUtc,
-            lt: endUtc,
+            gte: broadStartUtc,
+            lt: broadEndUtc,
           },
         },
         select: {
@@ -162,6 +178,11 @@ export class StatisticsService {
               topic_id: true,
               questions: true,
               correct: true,
+            },
+          },
+          evaluation: {
+            select: {
+              understanding: true,
             },
           },
         },
@@ -204,6 +225,9 @@ export class StatisticsService {
         questions: pr.questions,
         correct: pr.correct,
       })),
+      evaluation: ss.evaluation
+        ? { understanding: ss.evaluation.understanding as UnderstandingLevelDTO }
+        : null,
     }));
 
     const result = calculatePeriodStatistics({
@@ -217,13 +241,14 @@ export class StatisticsService {
       filterSubjectId: query.subject_id,
       filterTopicId: query.topic_id,
       referenceNow,
+      classificationWindow,
     });
 
     return {
       range,
       referenceDate,
       startLocalDate: days[0],
-      endLocalDate: days[days.length - 1],
+      endLocalDate: periodEndLocalDate,
       ...result,
     };
   }

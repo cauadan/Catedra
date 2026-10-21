@@ -377,4 +377,104 @@ describe('Statistics & Dashboard API (/api/statistics e /api/dashboard): Exatid�
     expect(octStatsRes.body.data.overview.agendaPlannedMinutes).toBe(50);
     expect(octStatsRes.body.data.overview.effectiveMinutes).toBe(0);
   });
+
+  it('FASE 8 - CLASSIFICAÇÃO 70/30 E JANELA UNIFICADA: retorna classification exato (20q/15c + GOOD/MASTERED -> 77.55 REGULAR, displayScore 77.5) em /api/statistics (mesmo com range=day) e classificationSummary em /api/dashboard', async () => {
+    // Sessão 1 em 2026-10-10: 10 questões, 8 acertos, avaliação GOOD (67)
+    const s1 = await prisma.studySession.create({
+      data: {
+        user_id: user.user.id,
+        topic_id: user.topic.id,
+        status: 'FINISHED',
+        started_at: new Date('2026-10-10T14:00:00.000Z'),
+        ended_at: new Date('2026-10-10T15:00:00.000Z'),
+      },
+    });
+    await prisma.practiceRecord.create({
+      data: {
+        user_id: user.user.id,
+        study_session_id: s1.id,
+        topic_id: user.topic.id,
+        questions: 10,
+        correct: 8,
+      },
+    });
+    await prisma.sessionEvaluation.create({
+      data: {
+        user_id: user.user.id,
+        study_session_id: s1.id,
+        understanding: 'GOOD',
+        focus: 'HIGH',
+        difficulty: 'NORMAL',
+      },
+    });
+
+    // Sessão 2 em 2026-10-14: 10 questões, 7 acertos, avaliação MASTERED (100)
+    // Total nos 30 dias até 2026-10-15: 20 questões, 15 acertos (75%), avaliações [67, 100] (média 83.5)
+    // finalScore = 0.7 * 75 + 0.3 * 83.5 = 52.5 + 25.05 = 77.55 -> REGULAR, displayScore = 77.5
+    const s2 = await prisma.studySession.create({
+      data: {
+        user_id: user.user.id,
+        topic_id: user.topic.id,
+        status: 'FINISHED',
+        started_at: new Date('2026-10-14T14:00:00.000Z'),
+        ended_at: new Date('2026-10-14T15:00:00.000Z'),
+      },
+    });
+    await prisma.practiceRecord.create({
+      data: {
+        user_id: user.user.id,
+        study_session_id: s2.id,
+        topic_id: user.topic.id,
+        questions: 10,
+        correct: 7,
+      },
+    });
+    await prisma.sessionEvaluation.create({
+      data: {
+        user_id: user.user.id,
+        study_session_id: s2.id,
+        understanding: 'MASTERED',
+        focus: 'HIGH',
+        difficulty: 'EASY',
+      },
+    });
+
+    // Consultando range=day em 2026-10-15 (dia sem sessões): a tabela do dia tem 0 questões no dia,
+    // mas classification usa a janela de 30 dias até 2026-10-15 com as 20 questões!
+    const statsDayRes = await request(app)
+      .get('/api/statistics?range=day&date=2026-10-15')
+      .set('Cookie', user.cookie);
+
+    expect(statsDayRes.status).toBe(200);
+    const topicRow = statsDayRes.body.data.byTopic.find((t: any) => t.topicId === user.topic.id);
+    expect(topicRow).toBeDefined();
+    expect(topicRow.totalQuestions).toBe(0); // no dia 15/10
+    expect(topicRow.classification).toBeDefined();
+    expect(topicRow.classification.classification).toBe('REGULAR');
+    expect(topicRow.classification.displayScore).toBe(77.5);
+    expect(topicRow.classification.questionsInWindow).toBe(20);
+    expect(topicRow.classification.correctInWindow).toBe(15);
+    expect(topicRow.classification.windowEndLocalDate).toBe('2026-10-15');
+    expect(topicRow.classification.windowStartLocalDate).toBe('2026-09-16');
+
+    // childTopic nunca foi estudado nos 30 dias -> não entra em byTopic nem em classificationSummary
+    const childRow = statsDayRes.body.data.byTopic.find((t: any) => t.topicId === childTopic.id);
+    expect(childRow).toBeUndefined();
+
+    const dashRes = await request(app)
+      .get('/api/dashboard?date=2026-10-15')
+      .set('Cookie', user.cookie);
+
+    expect(dashRes.status).toBe(200);
+    const dash = dashRes.body.data;
+    expect(dash.classificationSummary).toEqual({
+      strongCount: 0,
+      regularCount: 1,
+      weakCount: 0,
+      insufficientCount: 0,
+    });
+    expect(dash.subjectProgress[0].classification).toBeDefined();
+    expect(dash.subjectProgress[0].classification.classification).toBe('REGULAR');
+    expect(dash.subjectProgress[0].classification.displayScore).toBe(77.5);
+  });
 });

@@ -1,5 +1,5 @@
 /**
- * Agregações analíticas, séries temporais diárias e transparência de fórmulas (Fase 7).
+ * Agregações analíticas, séries temporais diárias e transparência de fórmulas (Fases 7 e 8).
  * Funções puras — sem banco de dados, sem I/O.
  */
 
@@ -7,9 +7,21 @@ import { z } from 'zod';
 import { isValidLocalDate, utcToLocalDate } from './calendar.js';
 import { getTopicSubtreeIds, MIN_QUESTIONS, type GoalProgressSessionInput } from './goals.js';
 import { type TopicTreeNode } from './index.js';
+import {
+  buildClassificationIndex,
+  calculateTopicClassification,
+  getClassificationWindow,
+  type ClassificationWindowInfo,
+  type ClassificationWindowResult,
+  type TopicClassification,
+} from './observatory.js';
 import { type PlannedSessionStatusDTO } from './planning.js';
 import { calculateAccuracy } from './practice.js';
+import { DEFAULT_STUDY_THRESHOLDS, type StudyThresholds } from './thresholds.js';
 import { calculateSessionMetrics } from './timer.js';
+
+/** Constante de conversão de unidades de tempo (segundos por minuto). */
+const SECONDS_IN_MINUTE = 60;
 
 export const STATISTICS_RANGES = ['day', 'week', 'month', '30d'] as const;
 export type StatisticsRangeDTO = (typeof STATISTICS_RANGES)[number];
@@ -100,6 +112,7 @@ export interface SubjectStatsRow {
   totalErrors: number;
   accuracy: number | null;
   hasSufficientQuestions: boolean;
+  classification: TopicClassification;
 }
 
 export interface TopicStatsRow {
@@ -118,6 +131,7 @@ export interface TopicStatsRow {
   totalErrors: number;
   accuracy: number | null;
   hasSufficientQuestions: boolean;
+  classification: TopicClassification;
 }
 
 export interface DailySeriesPoint {
@@ -168,6 +182,7 @@ export interface PeriodStatisticsResult {
   byTopic: TopicStatsRow[];
   dailySeries: DailySeriesPoint[];
   formulaMetadata: FormulaMetadata;
+  classificationWindow: ClassificationWindowInfo;
 }
 
 function isTopicAllowed(
@@ -203,6 +218,8 @@ export function calculatePeriodStatistics(params: {
   filterSubjectId?: string;
   filterTopicId?: string;
   referenceNow: Date;
+  classificationWindow?: ClassificationWindowResult;
+  thresholds?: StudyThresholds;
 }): PeriodStatisticsResult {
   const {
     windowUtc,
@@ -215,8 +232,22 @@ export function calculatePeriodStatistics(params: {
     filterSubjectId,
     filterTopicId,
     referenceNow,
+    thresholds = DEFAULT_STUDY_THRESHOLDS,
   } = params;
   const { startUtc, endUtc } = windowUtc;
+
+  const periodEndLocalDate = days[days.length - 1];
+  const classWin =
+    params.classificationWindow ??
+    getClassificationWindow(periodEndLocalDate, referenceNow, timezone, thresholds);
+
+  const classIndex = buildClassificationIndex({
+    sessions: studySessions,
+    subjects,
+    topics,
+    window: classWin,
+    thresholds,
+  });
 
   const subjectById = new Map<string, StatisticsSubjectInput>();
   for (const s of subjects) {
@@ -303,6 +334,16 @@ export function calculatePeriodStatistics(params: {
     return agg;
   };
 
+  // Garante que itens com atividade na janela de 30 dias também entrem nas tabelas (mesmo em range=day)
+  for (const topicId of classIndex.byTopic.keys()) {
+    if (!isTopicAllowed(topicId, filterSubjectId, topicSubtreeIds, topicById)) continue;
+    ensureTopicAgg(topicId);
+    const tInfo = topicById.get(topicId);
+    if (tInfo) {
+      ensureSubjectAgg(tInfo.subject_id);
+    }
+  }
+
   // 1. Processa PlannedSessions (status PLANNED ou DONE dentro da janela)
   let agendaPlannedMinutes = 0;
 
@@ -323,7 +364,7 @@ export function calculatePeriodStatistics(params: {
     subjAgg.agendaPlannedMinutes += ps.planned_minutes;
   }
 
-  // 2. Processa StudySessions FINISHED dentro da janela
+  // 2. Processa StudySessions FINISHED dentro da janela do período filtrado
   let executedPlannedSeconds = 0;
   let effectiveSeconds = 0;
   let totalSessionSeconds = 0;
@@ -404,7 +445,7 @@ export function calculatePeriodStatistics(params: {
       date: d,
       agendaPlannedMinutes: entry.agendaPlannedMinutes,
       effectiveSeconds: entry.effectiveSeconds,
-      effectiveMinutes: entry.effectiveSeconds / 60,
+      effectiveMinutes: entry.effectiveSeconds / SECONDS_IN_MINUTE,
       totalSessionSeconds: entry.totalSessionSeconds,
       questions: entry.questions,
       correct: entry.correct,
@@ -416,7 +457,7 @@ export function calculatePeriodStatistics(params: {
     });
   }
 
-  const effectiveMinutes = effectiveSeconds / 60;
+  const effectiveMinutes = effectiveSeconds / SECONDS_IN_MINUTE;
   const effectiveness =
     totalSessionSeconds > 0 ? (effectiveSeconds / totalSessionSeconds) * 100 : null;
   const adherence =
@@ -425,15 +466,28 @@ export function calculatePeriodStatistics(params: {
   const accuracy = calculateAccuracy(totalCorrect, totalQuestions);
   const totalDaysInPeriod = days.length;
 
-  // 4. Monta bySubject (apenas matérias com atividade/planejamento ou filtradas)
+  const windowInfo: ClassificationWindowInfo = {
+    windowStartLocalDate: classWin.windowStartLocalDate,
+    windowEndLocalDate: classWin.windowEndLocalDate,
+  };
+
+  const emptyClassification = calculateTopicClassification(
+    { totalQuestions: 0, totalCorrect: 0, understandingScores: [] },
+    windowInfo,
+    thresholds
+  );
+
+  // 4. Monta bySubject (matérias com atividade/planejamento no período ou atividade na janela de 30 dias)
   const bySubject: SubjectStatsRow[] = [];
   for (const [subjectId, agg] of subjectAgg.entries()) {
-    if (
-      agg.effectiveSeconds === 0 &&
-      agg.totalQuestions === 0 &&
-      agg.agendaPlannedMinutes === 0 &&
-      agg.completedSessionsCount === 0
-    ) {
+    const hasPeriodActivity =
+      agg.effectiveSeconds > 0 ||
+      agg.totalQuestions > 0 ||
+      agg.agendaPlannedMinutes > 0 ||
+      agg.completedSessionsCount > 0;
+    const hasClassActivity = classIndex.bySubject.has(subjectId);
+
+    if (!hasPeriodActivity && !hasClassActivity) {
       continue;
     }
     const subj = subjectById.get(subjectId);
@@ -446,13 +500,14 @@ export function calculatePeriodStatistics(params: {
       archived: subj.archived,
       agendaPlannedMinutes: agg.agendaPlannedMinutes,
       effectiveSeconds: agg.effectiveSeconds,
-      effectiveMinutes: agg.effectiveSeconds / 60,
+      effectiveMinutes: agg.effectiveSeconds / SECONDS_IN_MINUTE,
       completedSessionsCount: agg.completedSessionsCount,
       totalQuestions: agg.totalQuestions,
       totalCorrect: agg.totalCorrect,
       totalErrors: agg.totalQuestions - agg.totalCorrect,
       accuracy: calculateAccuracy(agg.totalCorrect, agg.totalQuestions),
-      hasSufficientQuestions: agg.totalQuestions >= MIN_QUESTIONS,
+      hasSufficientQuestions: agg.totalQuestions >= thresholds.MIN_QUESTIONS,
+      classification: classIndex.bySubject.get(subjectId) ?? emptyClassification,
     });
   }
 
@@ -464,7 +519,11 @@ export function calculatePeriodStatistics(params: {
   // 5. Monta byTopic (agrupamento direto sem dupla contagem nos pais)
   const byTopic: TopicStatsRow[] = [];
   for (const [topicId, agg] of topicAgg.entries()) {
-    if (agg.effectiveSeconds === 0 && agg.totalQuestions === 0 && agg.completedSessionsCount === 0) {
+    const hasPeriodActivity =
+      agg.effectiveSeconds > 0 || agg.totalQuestions > 0 || agg.completedSessionsCount > 0;
+    const hasClassActivity = classIndex.byTopic.has(topicId);
+
+    if (!hasPeriodActivity && !hasClassActivity) {
       continue;
     }
     const top = topicById.get(topicId);
@@ -480,13 +539,14 @@ export function calculatePeriodStatistics(params: {
       parentId: top.parent_id,
       archived: top.archived,
       effectiveSeconds: agg.effectiveSeconds,
-      effectiveMinutes: agg.effectiveSeconds / 60,
+      effectiveMinutes: agg.effectiveSeconds / SECONDS_IN_MINUTE,
       completedSessionsCount: agg.completedSessionsCount,
       totalQuestions: agg.totalQuestions,
       totalCorrect: agg.totalCorrect,
       totalErrors: agg.totalQuestions - agg.totalCorrect,
       accuracy: calculateAccuracy(agg.totalCorrect, agg.totalQuestions),
-      hasSufficientQuestions: agg.totalQuestions >= MIN_QUESTIONS,
+      hasSufficientQuestions: agg.totalQuestions >= thresholds.MIN_QUESTIONS,
+      classification: classIndex.byTopic.get(topicId) ?? emptyClassification,
     });
   }
 
@@ -546,5 +606,6 @@ export function calculatePeriodStatistics(params: {
     byTopic,
     dailySeries,
     formulaMetadata,
+    classificationWindow: windowInfo,
   };
 }
