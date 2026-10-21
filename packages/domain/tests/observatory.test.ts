@@ -308,3 +308,588 @@ describe('Fase 8 - Tarefa 1: Thresholds, Janela de Classificação e Nota 70/30'
     expect(subClass.displayScore).toBe(81);
   });
 });
+
+import {
+  calculateWeeklyObservatory,
+  localDateTimeToUtc,
+  observatoryQuerySchema,
+} from '../src/index.js';
+
+function makeStudySession(params: {
+  id: string;
+  topic_id: string;
+  startedAt: Date;
+  totalSeconds: number;
+  pausedSeconds?: number;
+  distractedRealtimeSeconds?: number;
+  distractedDeclaredSeconds?: number;
+  plannedMinutes?: number;
+  status?: 'FINISHED' | 'IN_PROGRESS' | 'CANCELLED';
+  questions?: number;
+  correct?: number;
+  understanding?: 'NONE' | 'PARTIAL' | 'GOOD' | 'MASTERED';
+}) {
+  const {
+    id,
+    topic_id,
+    startedAt,
+    totalSeconds,
+    pausedSeconds = 0,
+    distractedRealtimeSeconds = 0,
+    distractedDeclaredSeconds = 0,
+    plannedMinutes = 60,
+    status = 'FINISHED',
+    questions = 0,
+    correct = 0,
+    understanding,
+  } = params;
+
+  const blockId = `${id}-b1`;
+  const startMs = startedAt.getTime();
+  const endMs = startMs + totalSeconds * 1000;
+
+  const events: Array<{
+    id: string;
+    block_id: string | null;
+    type:
+      | 'BLOCK_START'
+      | 'PAUSE'
+      | 'RESUME'
+      | 'DISTRACTION_START'
+      | 'DISTRACTION_END'
+      | 'DISTRACTION_DECLARED'
+      | 'BLOCK_FINISH'
+      | 'SESSION_FINISH';
+    occurred_at: Date;
+    declared_seconds: number | null;
+  }> = [
+    {
+      id: `${id}-ev-start`,
+      block_id: blockId,
+      type: 'BLOCK_START',
+      occurred_at: new Date(startMs),
+      declared_seconds: null,
+    },
+  ];
+
+  let cursorMs = startMs + 1000;
+  if (pausedSeconds > 0) {
+    events.push({
+      id: `${id}-ev-pause`,
+      block_id: blockId,
+      type: 'PAUSE',
+      occurred_at: new Date(cursorMs),
+      declared_seconds: null,
+    });
+    cursorMs += pausedSeconds * 1000;
+    events.push({
+      id: `${id}-ev-resume`,
+      block_id: blockId,
+      type: 'RESUME',
+      occurred_at: new Date(cursorMs),
+      declared_seconds: null,
+    });
+    cursorMs += 1000;
+  }
+
+  if (distractedRealtimeSeconds > 0) {
+    events.push({
+      id: `${id}-ev-dstart`,
+      block_id: blockId,
+      type: 'DISTRACTION_START',
+      occurred_at: new Date(cursorMs),
+      declared_seconds: null,
+    });
+    cursorMs += distractedRealtimeSeconds * 1000;
+    events.push({
+      id: `${id}-ev-dend`,
+      block_id: blockId,
+      type: 'DISTRACTION_END',
+      occurred_at: new Date(cursorMs),
+      declared_seconds: null,
+    });
+  }
+
+  if (distractedDeclaredSeconds > 0) {
+    events.push({
+      id: `${id}-ev-ddec`,
+      block_id: blockId,
+      type: 'DISTRACTION_DECLARED',
+      occurred_at: new Date(endMs - 500),
+      declared_seconds: distractedDeclaredSeconds,
+    });
+  }
+
+  events.push({
+    id: `${id}-ev-bfin`,
+    block_id: blockId,
+    type: 'BLOCK_FINISH',
+    occurred_at: new Date(endMs),
+    declared_seconds: null,
+  });
+
+  if (status === 'FINISHED') {
+    events.push({
+      id: `${id}-ev-sfin`,
+      block_id: null,
+      type: 'SESSION_FINISH',
+      occurred_at: new Date(endMs),
+      declared_seconds: null,
+    });
+  }
+
+  return {
+    id,
+    topic_id,
+    status,
+    started_at: new Date(startMs),
+    ended_at: status === 'FINISHED' ? new Date(endMs) : null,
+    planned_start: null,
+    blocks: [
+      {
+        id: blockId,
+        kind: 'NEW_CONTENT' as const,
+        planned_minutes: plannedMinutes,
+        position: 0,
+      },
+    ],
+    events,
+    practice_records:
+      questions > 0 ? [{ topic_id, questions, correct }] : [],
+    evaluation: understanding ? { understanding } : null,
+  };
+}
+
+describe('Fase 8 - Tarefa 2: Motor do Observatório Semanal e Alertas Determinísticos', () => {
+  const tz = 'America/Rio_Branco';
+
+  it('valida observatoryQuerySchema com .strict()', () => {
+    expect(observatoryQuerySchema.safeParse({}).success).toBe(true);
+    expect(observatoryQuerySchema.safeParse({ date: '2026-10-21' }).success).toBe(true);
+    expect(observatoryQuerySchema.safeParse({ date: '2026-02-30' }).success).toBe(false);
+    expect(observatoryQuerySchema.safeParse({ date: '2026-10-21', extra: 'x' }).success).toBe(false);
+  });
+
+  it('retorna hasAnyData=false e variações null (sem NaN) quando o usuário é novo e não tem dados', () => {
+    const refNow = localDateTimeToUtc('2026-10-21T14:00', tz); // Quarta-feira
+    const report = calculateWeeklyObservatory({
+      selectedLocalDate: '2026-10-21',
+      referenceNow: refNow,
+      timezone: tz,
+      weekStartsOn: 'MONDAY',
+      sessions: [],
+      plannedSessions: [],
+      subjects: [],
+      topics: [],
+    });
+
+    expect(report.hasAnyData).toBe(false);
+    expect(report.isPartialWeek).toBe(true);
+    expect(report.elapsedDaysCount).toBe(3); // Seg(19), Ter(20), Qua(21)
+    expect(report.weekComparison.deltaEffectiveMinutesPercent).toBeNull();
+    expect(report.weekComparison.deltaAccuracyPoints).toBeNull();
+    expect(report.pauseAndDistractionAnalysis.highestDistractionSubject).toBeNull();
+    expect(report.pauseAndDistractionAnalysis.highestDistractionDay).toBeNull();
+    expect(report.insightsAndRecommendations).toEqual([]);
+  });
+
+  it('atribui sessão iniciada às 23:50 locais (America/Rio_Branco) no domingo à semana correta conforme week_starts_on', () => {
+    // 2026-10-18 é domingo. 23:50 em Rio Branco (UTC-5) = 2026-10-19T04:50:00Z
+    const sunNight = localDateTimeToUtc('2026-10-18T23:50', tz);
+    const refNow = localDateTimeToUtc('2026-10-21T12:00', tz);
+
+    const subjects = [
+      {
+        id: 's1',
+        name: 'Física',
+        color: '#3B82F6',
+        archived: false,
+        created_at: new Date('2026-01-01T00:00:00Z'),
+      },
+    ];
+    const topics = [
+      { id: 't1', subject_id: 's1', parent_id: null, name: 'Óptica', archived: false },
+    ];
+    const s = makeStudySession({
+      id: 'sess-sun',
+      topic_id: 't1',
+      startedAt: sunNight,
+      totalSeconds: 3600,
+      questions: 12,
+      correct: 10,
+    });
+
+    // Com week_starts_on = MONDAY, 2026-10-18 pertence à semana anterior (12/10 a 18/10), não à semana de 19/10 a 25/10
+    const repMon = calculateWeeklyObservatory({
+      selectedLocalDate: '2026-10-18',
+      referenceNow: refNow,
+      timezone: tz,
+      weekStartsOn: 'MONDAY',
+      sessions: [s],
+      plannedSessions: [],
+      subjects,
+      topics,
+    });
+    expect(repMon.weekStartLocalDate).toBe('2026-10-12');
+    expect(repMon.weekEndLocalDate).toBe('2026-10-18');
+    expect(repMon.weekComparison.selectedWeek.effectiveMinutes).toBe(60);
+
+    // Com week_starts_on = SUNDAY, 2026-10-18 é o primeiro dia da semana 18/10 a 24/10
+    const repSun = calculateWeeklyObservatory({
+      selectedLocalDate: '2026-10-18',
+      referenceNow: refNow,
+      timezone: tz,
+      weekStartsOn: 'SUNDAY',
+      sessions: [s],
+      plannedSessions: [],
+      subjects,
+      topics,
+    });
+    expect(repSun.weekStartLocalDate).toBe('2026-10-18');
+    expect(repSun.weekEndLocalDate).toBe('2026-10-24');
+    expect(repSun.weekComparison.selectedWeek.effectiveMinutes).toBe(60);
+  });
+
+  it('compara recorte parcial de dias equivalentes e usa evaluationInstant ao consultar semana passada (protegendo matéria recém-criada)', () => {
+    // Semana selecionada passada: 2026-10-05 a 2026-10-11 (encerrada)
+    const refNow = localDateTimeToUtc('2026-10-21T15:00', tz);
+    const subjects = [
+      {
+        id: 's-old',
+        name: 'Química',
+        color: '#10b981',
+        archived: false,
+        created_at: localDateTimeToUtc('2026-09-01T10:00', tz), // criada > 7 dias antes de 11/10
+      },
+      {
+        id: 's-new-at-past-week',
+        name: 'Biologia',
+        color: '#f59e0b',
+        archived: false,
+        // criada em 2026-10-08 (apenas 3 dias antes do fim da semana consultada 11/10, mas 13 dias antes de refNow 21/10)
+        created_at: localDateTimeToUtc('2026-10-08T10:00', tz),
+      },
+    ];
+    const topics = [
+      { id: 't-q', subject_id: 's-old', parent_id: null, name: 'Estequiometria', archived: false },
+    ];
+
+    const plannedSessions = [
+      {
+        id: 'ps-past',
+        subject_id: 's-old',
+        topic_id: 't-q',
+        scheduled_start: localDateTimeToUtc('2026-10-06T10:00', tz),
+        planned_minutes: 90,
+        status: 'PLANNED' as const,
+      },
+    ];
+
+    const repPast = calculateWeeklyObservatory({
+      selectedLocalDate: '2026-10-07',
+      referenceNow: refNow,
+      timezone: tz,
+      weekStartsOn: 'MONDAY',
+      sessions: [],
+      plannedSessions,
+      subjects,
+      topics,
+    });
+
+    expect(repPast.isPartialWeek).toBe(false);
+    expect(repPast.elapsedDaysCount).toBe(7);
+    // s-old não teve estudo nos 7 dias até 2026-10-11 => negligenciada
+    // s-new-at-past-week tinha só 3 dias de vida no evaluationInstant (fim de 2026-10-11) => NÃO negligenciada!
+    expect(repPast.neglectedSubjects.map((s) => s.subjectId)).toEqual(['s-old']);
+  });
+
+  it('dispara e ordena alertas determinísticos respeitando amostra mínima de 1800s, consistência proporcional, limite MAX_TOPIC_RECOMMENDATIONS=5 e exclusão de arquivados', () => {
+    // Semana encerrada: 2026-10-12 a 2026-10-18. Hoje: 2026-10-21.
+    const refNow = localDateTimeToUtc('2026-10-21T12:00', tz);
+
+    const subjects = [
+      {
+        id: 's-active',
+        name: 'Direito Constitucional',
+        color: '#3b82f6',
+        archived: false,
+        created_at: localDateTimeToUtc('2026-08-01T00:00', tz),
+      },
+      {
+        id: 's-neglected',
+        name: 'Direito Administrativo',
+        color: '#ef4444',
+        archived: false,
+        created_at: localDateTimeToUtc('2026-08-01T00:00', tz),
+      },
+      {
+        id: 's-archived',
+        name: 'Matéria Arquivada',
+        color: '#64748b',
+        archived: true,
+        created_at: localDateTimeToUtc('2026-08-01T00:00', tz),
+      },
+    ];
+
+    // 6 tópicos fracos ativos para testar limite MAX_TOPIC_RECOMMENDATIONS = 5 e ordenação por menor finalScore + desempate por id
+    const topics = [
+      { id: 't-weak-1', subject_id: 's-active', parent_id: null, name: 'Fraco 1', archived: false },
+      { id: 't-weak-2', subject_id: 's-active', parent_id: null, name: 'Fraco 2', archived: false },
+      { id: 't-weak-3', subject_id: 's-active', parent_id: null, name: 'Fraco 3', archived: false },
+      { id: 't-weak-4', subject_id: 's-active', parent_id: null, name: 'Fraco 4', archived: false },
+      { id: 't-weak-5', subject_id: 's-active', parent_id: null, name: 'Fraco 5', archived: false },
+      { id: 't-weak-6', subject_id: 's-active', parent_id: null, name: 'Fraco 6', archived: false },
+      { id: 't-reg-1', subject_id: 's-active', parent_id: null, name: 'Regular 1', archived: false },
+      { id: 't-str-1', subject_id: 's-active', parent_id: null, name: 'Forte 1', archived: false },
+      { id: 't-str-2', subject_id: 's-active', parent_id: null, name: 'Forte 2', archived: false },
+      { id: 't-arch', subject_id: 's-active', parent_id: null, name: 'Tópico Arquivado', archived: true },
+      { id: 't-sub-arch', subject_id: 's-archived', parent_id: null, name: 'Tópico de Matéria Arquivada', archived: false },
+    ];
+
+    // Semana anterior (05/10 a 11/10): alta acurácia (90% em 20 questões)
+    const prevWeekSession = makeStudySession({
+      id: 'sess-prev',
+      topic_id: 't-str-1',
+      startedAt: localDateTimeToUtc('2026-10-06T10:00', tz),
+      totalSeconds: 3600,
+      questions: 20,
+      correct: 18, // 90%
+      understanding: 'MASTERED',
+    });
+
+    // Semana selecionada (12/10 a 18/10):
+    // 1 único dia ativo (13/10) -> dispara alert:low-consistency (< 3 dias)
+    // Total session = 3600s (>= 1800s), com 1200s distraído -> efetivo 2400s (40 min) -> effectiveness = 66.67% (< 75% -> alert:low-effectiveness)
+    // Planejado do bloco = 60 min (3600s) -> adherence = 2400/3600 = 66.67% (< 70% -> alert:low-adherence)
+    // Acurácia na semana selecionada: 60 questões, 20 acertos (33.33%) -> queda de > 10 pontos vs 90% -> alert:accuracy-drop
+    const curSessions = [
+      makeStudySession({
+        id: 'sess-cur-1',
+        topic_id: 't-weak-1',
+        startedAt: localDateTimeToUtc('2026-10-13T10:00', tz),
+        totalSeconds: 3600,
+        distractedRealtimeSeconds: 2400,
+        plannedMinutes: 60,
+        questions: 10,
+        correct: 2, // 20%
+      }),
+      makeStudySession({
+        id: 'sess-cur-2',
+        topic_id: 't-weak-2',
+        startedAt: localDateTimeToUtc('2026-10-13T12:00', tz),
+        totalSeconds: 600,
+        plannedMinutes: 10,
+        questions: 10,
+        correct: 3, // 30%
+      }),
+      makeStudySession({
+        id: 'sess-cur-3',
+        topic_id: 't-weak-3',
+        startedAt: localDateTimeToUtc('2026-10-13T13:00', tz),
+        totalSeconds: 600,
+        plannedMinutes: 10,
+        questions: 10,
+        correct: 3, // 30% (empate com t-weak-2 -> desempate por id)
+      }),
+      makeStudySession({
+        id: 'sess-cur-4',
+        topic_id: 't-weak-4',
+        startedAt: localDateTimeToUtc('2026-10-13T14:00', tz),
+        totalSeconds: 600,
+        plannedMinutes: 10,
+        questions: 10,
+        correct: 4, // 40%
+      }),
+      makeStudySession({
+        id: 'sess-cur-5',
+        topic_id: 't-weak-5',
+        startedAt: localDateTimeToUtc('2026-10-13T15:00', tz),
+        totalSeconds: 600,
+        plannedMinutes: 10,
+        questions: 10,
+        correct: 5, // 50%
+      }),
+      makeStudySession({
+        id: 'sess-cur-6',
+        topic_id: 't-weak-6',
+        startedAt: localDateTimeToUtc('2026-10-13T16:00', tz),
+        totalSeconds: 600,
+        plannedMinutes: 10,
+        questions: 10,
+        correct: 5, // 55% se 11/20, aqui 5/10 = 50%, mas é o 6º -> cortado pelo MAX_TOPIC_RECOMMENDATIONS=5
+      }),
+      makeStudySession({
+        id: 'sess-reg',
+        topic_id: 't-reg-1',
+        startedAt: localDateTimeToUtc('2026-10-01T10:00', tz), // nos 30 dias
+        totalSeconds: 1800,
+        questions: 10,
+        correct: 7, // 70% REGULAR
+      }),
+      makeStudySession({
+        id: 'sess-str-2',
+        topic_id: 't-str-2',
+        startedAt: localDateTimeToUtc('2026-10-02T10:00', tz), // nos 30 dias
+        totalSeconds: 1800,
+        questions: 10,
+        correct: 10, // 100% STRONG (maior que t-str-1 que tem ~93%)
+        understanding: 'MASTERED',
+      }),
+      makeStudySession({
+        id: 'sess-arch',
+        topic_id: 't-arch',
+        startedAt: localDateTimeToUtc('2026-10-13T17:00', tz),
+        totalSeconds: 600,
+        questions: 10,
+        correct: 1,
+      }),
+      makeStudySession({
+        id: 'sess-sub-arch',
+        topic_id: 't-sub-arch',
+        startedAt: localDateTimeToUtc('2026-10-13T18:00', tz),
+        totalSeconds: 600,
+        questions: 10,
+        correct: 1,
+      }),
+    ];
+
+    // Agenda planejada: 300 min na semana -> gap >= 60 min -> alert:planning-gap
+    const plannedSessions = [
+      {
+        id: 'ps-1',
+        subject_id: 's-active',
+        topic_id: 't-weak-1',
+        scheduled_start: localDateTimeToUtc('2026-10-13T08:00', tz),
+        planned_minutes: 300,
+        status: 'PLANNED' as const,
+      },
+    ];
+
+    const report = calculateWeeklyObservatory({
+      selectedLocalDate: '2026-10-15',
+      referenceNow: refNow,
+      timezone: tz,
+      weekStartsOn: 'MONDAY',
+      sessions: [prevWeekSession, ...curSessions],
+      plannedSessions,
+      subjects,
+      topics,
+    });
+
+    // Tópicos arquivados ou de matéria arquivada não entram em topicClassification nem em insights
+    const allClassifiedTopicIds = [
+      ...report.topicClassification.weak.map((t) => t.topicId),
+      ...report.topicClassification.regular.map((t) => t.topicId),
+      ...report.topicClassification.strong.map((t) => t.topicId),
+      ...report.topicClassification.insufficient.map((t) => t.topicId),
+    ];
+    expect(allClassifiedTopicIds).not.toContain('t-arch');
+    expect(allClassifiedTopicIds).not.toContain('t-sub-arch');
+
+    const ids = report.insightsAndRecommendations.map((i) => i.id);
+
+    // Máximo 5 weak-topic recommendations (t-weak-6 fica de fora)
+    const weakRecIds = ids.filter((id) => id.startsWith('weak-topic:'));
+    expect(weakRecIds).toEqual([
+      'weak-topic:t-weak-1',
+      'weak-topic:t-weak-2',
+      'weak-topic:t-weak-3',
+      'weak-topic:t-weak-4',
+      'weak-topic:t-weak-5',
+    ]);
+
+    // Em HIGH: itens com finalScore vêm antes de alert:accuracy-drop (sem finalScore)
+    const highItems = report.insightsAndRecommendations.filter((i) => i.severity === 'HIGH');
+    expect(highItems.map((i) => i.id)).toEqual([
+      'weak-topic:t-weak-1',
+      'weak-topic:t-weak-2',
+      'weak-topic:t-weak-3',
+      'weak-topic:t-weak-4',
+      'weak-topic:t-weak-5',
+      'alert:accuracy-drop',
+    ]);
+
+    // Em MEDIUM: todos sem finalScore, desempate alfabético por id
+    const mediumItems = report.insightsAndRecommendations.filter((i) => i.severity === 'MEDIUM');
+    expect(mediumItems.map((i) => i.id)).toEqual([
+      'alert:low-adherence',
+      'alert:low-consistency',
+      'alert:low-effectiveness',
+      'neglected-subject:s-neglected',
+    ]);
+
+    // Em LOW: regular-topic:t-reg-1 (com finalScore) antes de alert:planning-gap (sem finalScore)
+    const lowItems = report.insightsAndRecommendations.filter((i) => i.severity === 'LOW');
+    expect(lowItems.map((i) => i.id)).toEqual([
+      'regular-topic:t-reg-1',
+      'alert:planning-gap',
+    ]);
+
+    // Em INFO (pontos fortes): ordenado por MAIOR finalScore (t-str-2 100 > t-str-1 93)
+    const infoItems = report.insightsAndRecommendations.filter((i) => i.severity === 'INFO');
+    expect(infoItems.map((i) => i.id)).toEqual([
+      'strong-topic:t-str-2',
+      'strong-topic:t-str-1',
+    ]);
+
+    // Todos possuem evidence não vazio
+    for (const item of report.insightsAndRecommendations) {
+      expect(item.evidence.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('não dispara alertas de queda de desempenho, aderência ou foco quando totalSessionSeconds < 1800s e respeita consistência proporcional em semana parcial', () => {
+    // Quinta-feira (elapsedDaysCount = 4 -> ceil(3 * 4 / 7) = 2 dias esperados)
+    const refNow = localDateTimeToUtc('2026-10-22T12:00', tz);
+    const subjects = [
+      {
+        id: 's1',
+        name: 'História',
+        color: '#3b82f6',
+        archived: false,
+        created_at: localDateTimeToUtc('2026-10-20T00:00', tz), // recém-criada
+      },
+    ];
+    const topics = [
+      { id: 't1', subject_id: 's1', parent_id: null, name: 'Brasil Colônia', archived: false },
+    ];
+
+    // Apenas 1200s (< 1800s) na semana atual, em 1 único dia ativo (terça 20/10)
+    const sCur = makeStudySession({
+      id: 'sess-short',
+      topic_id: 't1',
+      startedAt: localDateTimeToUtc('2026-10-20T10:00', tz),
+      totalSeconds: 1200,
+      distractedRealtimeSeconds: 600, // 50% foco, mas < 1800s
+      plannedMinutes: 60, // baixa aderência, mas < 1800s
+      questions: 15,
+      correct: 5,
+    });
+    const sPrev = makeStudySession({
+      id: 'sess-prev-ok',
+      topic_id: 't1',
+      startedAt: localDateTimeToUtc('2026-10-13T10:00', tz),
+      totalSeconds: 3600,
+      questions: 15,
+      correct: 15,
+    });
+
+    const report = calculateWeeklyObservatory({
+      selectedLocalDate: '2026-10-22',
+      referenceNow: refNow,
+      timezone: tz,
+      weekStartsOn: 'MONDAY',
+      sessions: [sPrev, sCur],
+      plannedSessions: [],
+      subjects,
+      topics,
+    });
+
+    const ids = report.insightsAndRecommendations.map((i) => i.id);
+    expect(ids).not.toContain('alert:accuracy-drop');
+    expect(ids).not.toContain('alert:low-adherence');
+    expect(ids).not.toContain('alert:low-effectiveness');
+    // Mas consistência proporcional dispara porque elapsedDaysCount=4 (esperado ceil(12/7)=2, ativo=1)
+    expect(ids).toContain('alert:low-consistency');
+  });
+});
