@@ -6,7 +6,8 @@
 import { z } from 'zod';
 import { isValidLocalDate, type GoalPeriod } from './calendar.js';
 import { collectDescendantIds, type TopicTreeNode } from './index.js';
-import { calculateAccuracy } from './practice.js';
+import { calculateAccuracy, type UnderstandingLevelDTO } from './practice.js';
+import { MIN_QUESTIONS } from './thresholds.js';
 import {
   calculateSessionMetrics,
   type SessionBlockDTO,
@@ -14,7 +15,7 @@ import {
   type StudySessionStatusDTO,
 } from './timer.js';
 
-export const MIN_QUESTIONS = 10;
+export { MIN_QUESTIONS };
 
 export const GOAL_KINDS = ['EFFORT', 'RESULT'] as const;
 export type GoalKindDTO = (typeof GOAL_KINDS)[number];
@@ -230,6 +231,9 @@ export interface GoalProgressSessionInput {
   blocks: ReadonlyArray<SessionBlockDTO>;
   events: ReadonlyArray<SessionEventDTO>;
   practice_records: ReadonlyArray<GoalPracticeRecordInput>;
+  evaluation?: {
+    understanding: UnderstandingLevelDTO;
+  } | null;
 }
 
 export interface GoalDefinitionInput {

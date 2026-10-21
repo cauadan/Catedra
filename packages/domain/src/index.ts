@@ -5,7 +5,15 @@
  */
 
 import { z } from 'zod';
+import {
+  MIN_QUESTIONS,
+  SCORE_WEIGHT_ACCURACY,
+  SCORE_WEIGHT_UNDERSTANDING,
+  STRONG_THRESHOLD,
+  WEAK_THRESHOLD,
+} from './thresholds.js';
 
+export * from './thresholds.js';
 export * from './calendar.js';
 export * from './planning.js';
 export * from './summary.js';
@@ -14,6 +22,7 @@ export * from './practice.js';
 export * from './study-session.js';
 export * from './goals.js';
 export * from './statistics.js';
+export * from './observatory.js';
 
 // ==============================================================================
 // 1. ESQUEMAS DE AUTENTICAÇÃO E USUÁRIO
@@ -388,14 +397,16 @@ export function resolveTopicMove(
 // 5. FÓRMULAS E CÁLCULOS DETERMINÍSTICOS (CONFORME SEÇÃO 5 DO CONTEXTO)
 // ==============================================================================
 
-export const MIN_QUESTIONS_FOR_RATING = 10;
+export const MIN_QUESTIONS_FOR_RATING = MIN_QUESTIONS;
 
 /**
  * Calcula a nota final do assunto:
  * 70% aproveitamento em questões + 30% autoavaliação qualitativa.
  */
 export function calculateSubjectGrade(accuracyPercentage: number, selfEvaluationScore: number): number {
-  const grade = accuracyPercentage * 0.7 + selfEvaluationScore * 0.3;
+  const grade =
+    accuracyPercentage * SCORE_WEIGHT_ACCURACY +
+    selfEvaluationScore * SCORE_WEIGHT_UNDERSTANDING;
   return Math.round(grade * 100) / 100;
 }
 
@@ -416,10 +427,10 @@ export function classifyPerformance(
   if (totalQuestions < minQuestions) {
     return 'DADOS_INSUFICIENTES';
   }
-  if (grade >= 80) {
+  if (grade >= STRONG_THRESHOLD) {
     return 'FORTE';
   }
-  if (grade >= 60) {
+  if (grade >= WEAK_THRESHOLD) {
     return 'REGULAR';
   }
   return 'FRACO';
