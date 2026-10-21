@@ -10,6 +10,8 @@ import { PlaceholderModule } from './pages/PlaceholderModule';
 import { Subjects } from './pages/Subjects';
 import { Agenda } from './pages/Agenda';
 import { Timer } from './pages/Timer';
+import { Goals } from './pages/Goals';
+import { Statistics } from './pages/Statistics';
 
 /**
  * Roteamento e orquestração de páginas do frontend.
@@ -40,19 +42,9 @@ function AppRoutes() {
         ) : path === '/timer' ? (
           <Timer />
         ) : path === '/goals' ? (
-          <PlaceholderModule
-            id="goals"
-            title="Metas de Estudo"
-            phase="Fase 4"
-            description="Acompanhamento de metas quantitativas e qualitativas de estudo."
-          />
+          <Goals />
         ) : path === '/stats' ? (
-          <PlaceholderModule
-            id="stats"
-            title="Desempenho e Estatísticas"
-            phase="Fase 4"
-            description="Análise e relatórios de rendimento, notas e classificações."
-          />
+          <Statistics />
         ) : path === '/observatory' ? (
           <PlaceholderModule
             id="observatory"

@@ -54,7 +54,12 @@ export function Subjects() {
   // Mutações
   const createSubject = useMutation({
     mutationFn: (data: { name: string; color: string }) => api.post('/api/subjects', data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subjects'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+    },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });
 
@@ -72,19 +77,34 @@ export function Subjects() {
 
   const createTopic = useMutation({
     mutationFn: (data: { subject_id: string; parent_id?: string | null; name: string }) => api.post('/api/topics', data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['topics'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['topics'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+    },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });
 
   const updateTopic = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<TopicDTO> }) => api.patch(`/api/topics/${id}`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['topics'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['topics'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+    },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });
 
   const deleteTopic = useMutation({
     mutationFn: (id: string) => api.delete(`/api/topics/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['topics'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['topics'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+    },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });
 

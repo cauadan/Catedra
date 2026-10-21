@@ -94,6 +94,9 @@ export function Agenda() {
     mutationFn: (data: any) => api.post('/api/planned-sessions', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -104,6 +107,9 @@ export function Agenda() {
       api.patch(`/api/planned-sessions/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -114,6 +120,9 @@ export function Agenda() {
       api.patch(`/api/planned-sessions/${id}/status`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -124,6 +133,9 @@ export function Agenda() {
       api.post(`/api/planned-sessions/${id}/reschedule`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -133,6 +145,9 @@ export function Agenda() {
     mutationFn: (id: string) => api.delete(`/api/planned-sessions/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -162,6 +177,9 @@ export function Agenda() {
       } else if (err.code === 'PLANNED_SESSION_NOT_AVAILABLE') {
         setErrorBanner(err.message);
         queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       } else {
         setErrorBanner(err.message);
       }

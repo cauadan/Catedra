@@ -92,6 +92,10 @@ export function Timer() {
   // Invalidação centralizada de queries de sessão
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['study-session'] });
+    queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['goals'] });
+    queryClient.invalidateQueries({ queryKey: ['statistics'] });
   };
 
   // Mutações de Eventos do Timer
