@@ -12,6 +12,8 @@ export * from './summary.js';
 export * from './timer.js';
 export * from './practice.js';
 export * from './study-session.js';
+export * from './goals.js';
+export * from './statistics.js';
 
 // ==============================================================================
 // 1. ESQUEMAS DE AUTENTICAÇÃO E USUÁRIO
