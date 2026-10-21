@@ -17,6 +17,8 @@ export type ApiErrorCode =
   | 'EVALUATION_ALREADY_EXISTS'
   | 'DECLARED_DISTRACTION_EXCEEDED'
   | 'TOPIC_ARCHIVED'
+  | 'GOAL_ALREADY_EXISTS'
+  | 'ARCHIVED_SCOPE'
   | 'UNPROCESSABLE_ENTITY';
 
 export interface ApiErrorDetail {
