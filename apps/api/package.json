@@ -14,6 +14,7 @@
     "db:migrate": "prisma migrate dev --name init",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "seed:sample-6m": "tsx scripts/seed-sample-6m.ts",
     "db:daemon": "node scripts/keep-db-alive.mjs",
     "db:push": "prisma db push"
   },

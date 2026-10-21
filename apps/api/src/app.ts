@@ -7,6 +7,8 @@ import { topicRouter } from './routes/topic.routes.js';
 import { plannedSessionRouter } from './routes/planned-session.routes.js';
 import { studySessionRouter } from './routes/study-session.routes.js';
 import { goalRouter } from './routes/goal.routes.js';
+import { statisticsRouter } from './routes/statistics.routes.js';
+import { dashboardRouter } from './routes/dashboard.routes.js';
 
 /**
  * Instância da aplicação Express (apps/api)
@@ -46,8 +48,10 @@ app.use('/api/planned-sessions', plannedSessionRouter);
 // Rotas de Execução do Estudo e Timer (Fases 4 e 5)
 app.use('/api/study-sessions', studySessionRouter);
 
-// Rotas de Metas de Estudo (Fase 6)
+// Rotas de Metas de Estudo, Estatísticas e Dashboard (Fases 6 e 7)
 app.use('/api/goals', goalRouter);
+app.use('/api/statistics', statisticsRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 // Middleware de tratamento de rotas não encontradas (404)
 app.use((req: Request, res: Response) => {

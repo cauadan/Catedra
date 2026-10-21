@@ -23,7 +23,8 @@
     "db:migrate": "npm run db:migrate --workspace=@estudos/api",
     "db:deploy": "npm run db:deploy --workspace=@estudos/api",
     "db:generate": "npm run db:generate --workspace=@estudos/api",
-    "db:seed": "npm run db:seed --workspace=@estudos/api"
+    "db:seed": "npm run db:seed --workspace=@estudos/api",
+    "seed:sample-6m": "npm run seed:sample-6m --workspace=@estudos/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
