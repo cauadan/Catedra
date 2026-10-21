@@ -5,7 +5,7 @@ import { prisma } from '../src/lib/prisma.js';
 import { sessionService, SESSION_COOKIE_NAME } from '../src/services/session.service.js';
 import { seedDemoData, DEMO_USER_EMAIL } from '../scripts/seed-sample-6m.js';
 
-describe('Performance & Anti-N+1 (/api/dashboard e /api/statistics): Invariância de Escala 10d vs 180d', () => {
+describe('Performance & Anti-N+1 (/api/dashboard, /api/statistics e /api/observatory): Invariância de Escala 10d vs 180d', () => {
   afterAll(async () => {
     try {
       await prisma.user.deleteMany({ where: { email: DEMO_USER_EMAIL } });
@@ -24,17 +24,27 @@ describe('Performance & Anti-N+1 (/api/dashboard e /api/statistics): Invariânci
 
     let queriesDash10 = 0;
     let queriesStats10 = 0;
-    let currentCounter: 'dash10' | 'stats10' | 'dash180' | 'stats180' | null = null;
+    let queriesObs10 = 0;
+    let queriesDash180 = 0;
+    let queriesStats180 = 0;
+    let queriesObs180 = 0;
+    let currentCounter:
+      | 'dash10'
+      | 'stats10'
+      | 'obs10'
+      | 'dash180'
+      | 'stats180'
+      | 'obs180'
+      | null = null;
 
     const onQuery = () => {
       if (currentCounter === 'dash10') queriesDash10++;
       else if (currentCounter === 'stats10') queriesStats10++;
+      else if (currentCounter === 'obs10') queriesObs10++;
       else if (currentCounter === 'dash180') queriesDash180++;
       else if (currentCounter === 'stats180') queriesStats180++;
+      else if (currentCounter === 'obs180') queriesObs180++;
     };
-
-    let queriesDash180 = 0;
-    let queriesStats180 = 0;
 
     (prisma as any).$on('query', onQuery);
 
@@ -51,10 +61,18 @@ describe('Performance & Anti-N+1 (/api/dashboard e /api/statistics): Invariânci
       .get(`/api/statistics?range=30d&date=${anchorDate}`)
       .set('Cookie', cookie10);
     const elapsedStats10 = performance.now() - t0Stats10;
+
+    currentCounter = 'obs10';
+    const t0Obs10 = performance.now();
+    const resObs10 = await request(app)
+      .get(`/api/observatory?date=${anchorDate}`)
+      .set('Cookie', cookie10);
+    const elapsedObs10 = performance.now() - t0Obs10;
     currentCounter = null;
 
     expect(resDash10.status).toBe(200);
     expect(resStats10.status).toBe(200);
+    expect(resObs10.status).toBe(200);
 
     // 2. Seed de 180 dias (6 meses) na mesma condição de estado
     const seed180 = await seedDemoData({ days: 180, anchorDate });
@@ -74,13 +92,21 @@ describe('Performance & Anti-N+1 (/api/dashboard e /api/statistics): Invariânci
       .get(`/api/statistics?range=30d&date=${anchorDate}`)
       .set('Cookie', cookie180);
     const elapsedStats180 = performance.now() - t0Stats180;
+
+    currentCounter = 'obs180';
+    const t0Obs180 = performance.now();
+    const resObs180 = await request(app)
+      .get(`/api/observatory?date=${anchorDate}`)
+      .set('Cookie', cookie180);
+    const elapsedObs180 = performance.now() - t0Obs180;
     currentCounter = null;
 
     expect(resDash180.status).toBe(200);
     expect(resStats180.status).toBe(200);
+    expect(resObs180.status).toBe(200);
     expect(seed180.sessionsCount).toBeGreaterThan(seed10.sessionsCount);
 
-    // Prova Anti-N+1: número constante de queries SQL entre 10d e 180d
+    // Prova Anti-N+1: número constante de queries SQL entre 10d e 180d nas 3 rotas analíticas
     expect(queriesDash180).toBeGreaterThan(0);
     expect(queriesDash180).toBe(queriesDash10);
     expect(queriesDash180).toBeLessThanOrEqual(25);
@@ -89,9 +115,15 @@ describe('Performance & Anti-N+1 (/api/dashboard e /api/statistics): Invariânci
     expect(queriesStats180).toBe(queriesStats10);
     expect(queriesStats180).toBeLessThanOrEqual(25);
 
+    expect(queriesObs180).toBeGreaterThan(0);
+    expect(queriesObs180).toBe(queriesObs10);
+    expect(queriesObs180).toBeLessThanOrEqual(25);
+
     expect(elapsedDash10).toBeLessThan(2000);
     expect(elapsedDash180).toBeLessThan(2000);
     expect(elapsedStats10).toBeLessThan(2000);
     expect(elapsedStats180).toBeLessThan(2000);
+    expect(elapsedObs10).toBeLessThan(2000);
+    expect(elapsedObs180).toBeLessThan(2000);
   });
 });
