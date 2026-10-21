@@ -189,6 +189,10 @@ describe('Goals & Statistics Pages (@estudos/web)', () => {
           referenceDate: '2026-10-20',
           startLocalDate: '2026-10-19',
           endLocalDate: '2026-10-25',
+          classificationWindow: {
+            windowStartLocalDate: '2026-09-21',
+            windowEndLocalDate: '2026-10-20',
+          },
           overview: {
             agendaPlannedMinutes: 0,
             executedPlannedSeconds: 0,
@@ -250,7 +254,7 @@ describe('Goals & Statistics Pages (@estudos/web)', () => {
     expect(html).toContain('Iniciar Estudo Agora');
   });
 
-  it('Statistics: renderiza indicadores explicáveis (Aderência > 100%, Carga Planejada na Agenda) e tabelas por matéria e assunto com badges de amostra insuficiente e arquivado', () => {
+  it('Statistics: renderiza indicadores explicáveis, coluna "Classificação (30 dias até DD/MM)", nota, ação recomendada e tooltip de pesos (70/30 e 100% fallback)', () => {
     mockQueryMap = {
       statistics: {
         data: {
@@ -258,6 +262,10 @@ describe('Goals & Statistics Pages (@estudos/web)', () => {
           referenceDate: '2026-10-20',
           startLocalDate: '2026-10-19',
           endLocalDate: '2026-10-25',
+          classificationWindow: {
+            windowStartLocalDate: '2026-09-21',
+            windowEndLocalDate: '2026-10-20',
+          },
           overview: {
             agendaPlannedMinutes: 90,
             executedPlannedSeconds: 3600,
@@ -289,6 +297,59 @@ describe('Goals & Statistics Pages (@estudos/web)', () => {
               totalErrors: 1,
               accuracy: 83.33,
               hasSufficientQuestions: false,
+              classification: {
+                windowStartLocalDate: '2026-09-21',
+                windowEndLocalDate: '2026-10-20',
+                questionsInWindow: 6,
+                correctInWindow: 5,
+                evaluationsCount: 1,
+                accuracyScore: 83.33,
+                understandingScore: 67,
+                finalScore: null,
+                displayScore: null,
+                level: 'INSUFFICIENT_DATA',
+                label: 'Dados insuficientes',
+                recommendedAction: 'COLLECT_DATA',
+                recommendedActionLabel: 'Resolver mais questões (mínimo 10)',
+                weightsUsed: { accuracy: 0.7, understanding: 0.3 },
+                usedFallback: false,
+                lowUnderstandingSignal: false,
+                hasActivityInWindow: true,
+              },
+            },
+            {
+              subjectId: 's2',
+              subjectName: 'Física',
+              subjectColor: '#10B981',
+              archived: false,
+              agendaPlannedMinutes: 60,
+              effectiveSeconds: 3600,
+              effectiveMinutes: 60,
+              completedSessionsCount: 1,
+              totalQuestions: 20,
+              totalCorrect: 15,
+              totalErrors: 5,
+              accuracy: 75,
+              hasSufficientQuestions: true,
+              classification: {
+                windowStartLocalDate: '2026-09-21',
+                windowEndLocalDate: '2026-10-20',
+                questionsInWindow: 20,
+                correctInWindow: 15,
+                evaluationsCount: 2,
+                accuracyScore: 75,
+                understandingScore: 83.5,
+                finalScore: 77.55,
+                displayScore: 77.5,
+                level: 'REGULAR',
+                label: 'Regular',
+                recommendedAction: 'MORE_PRACTICE',
+                recommendedActionLabel: 'Mais prática',
+                weightsUsed: { accuracy: 0.7, understanding: 0.3 },
+                usedFallback: false,
+                lowUnderstandingSignal: false,
+                hasActivityInWindow: true,
+              },
             },
           ],
           byTopic: [
@@ -303,11 +364,30 @@ describe('Goals & Statistics Pages (@estudos/web)', () => {
               effectiveSeconds: 4500,
               effectiveMinutes: 75,
               completedSessionsCount: 2,
-              totalQuestions: 6,
-              totalCorrect: 5,
-              totalErrors: 1,
-              accuracy: 83.33,
-              hasSufficientQuestions: false,
+              totalQuestions: 10,
+              totalCorrect: 6,
+              totalErrors: 4,
+              accuracy: 60,
+              hasSufficientQuestions: true,
+              classification: {
+                windowStartLocalDate: '2026-09-21',
+                windowEndLocalDate: '2026-10-20',
+                questionsInWindow: 10,
+                correctInWindow: 6,
+                evaluationsCount: 0,
+                accuracyScore: 60,
+                understandingScore: null,
+                finalScore: 60,
+                displayScore: 60,
+                level: 'REGULAR',
+                label: 'Regular',
+                recommendedAction: 'MORE_PRACTICE',
+                recommendedActionLabel: 'Mais prática',
+                weightsUsed: { accuracy: 1, understanding: 0 },
+                usedFallback: true,
+                lowUnderstandingSignal: false,
+                hasActivityInWindow: true,
+              },
             },
           ],
           dailySeries: [
@@ -364,7 +444,13 @@ describe('Goals & Statistics Pages (@estudos/web)', () => {
     expect(html).toContain('Carga Planejada na Agenda');
     expect(html).toContain('Aderência das Sessões Concluídas');
     expect(html).toContain('125');
-    expect(html).toContain('Dados insuficientes (&lt; 10 questões)');
+    expect(html).toContain('Classificação (30 dias até 20/10)');
+    expect(html).toContain('Dados insuficientes (6/10 questões)');
+    expect(html).toContain('77.5');
+    expect(html).toContain('Regular');
+    expect(html).toContain('Mais prática');
+    expect(html).toContain('70% acerto + 30% entendimento');
+    expect(html).toContain('100% acerto (sem autoavaliação)');
     expect(html).toContain('Arquivado');
   });
 });

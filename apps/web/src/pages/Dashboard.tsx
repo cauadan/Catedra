@@ -6,6 +6,7 @@ import {
   Clock,
   Target,
   BarChart2,
+  Compass,
   Play,
   AlertCircle,
   CheckCircle2,
@@ -14,6 +15,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { MIN_QUESTIONS } from '@estudos/domain';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from '../contexts/RouterContext';
 import { apiFetch } from '../lib/api';
@@ -56,6 +58,90 @@ const METRIC_LABELS: Record<string, string> = {
   ACCURACY: 'Taxa de acerto (%)',
 };
 
+const PLATFORM_MODULES = [
+  {
+    id: 'subjects',
+    path: '/subjects',
+    label: 'Matérias e Assuntos',
+    description: 'Estruturação hierárquica em árvore, matérias coloridas e tópicos recursivos.',
+    icon: Layers,
+  },
+  {
+    id: 'agenda',
+    path: '/agenda',
+    label: 'Agenda e Planejamento',
+    description: 'Planejamento semanal de sessões com fuso horário e início na segunda-feira.',
+    icon: Calendar,
+  },
+  {
+    id: 'timer',
+    path: '/timer',
+    label: 'Cronômetro de Estudo',
+    description: 'Registro de tempo líquido, pausas e cálculo de foco e aproveitamento.',
+    icon: Clock,
+  },
+  {
+    id: 'goals',
+    path: '/goals',
+    label: 'Metas de Estudo',
+    description: 'Definição e acompanhamento de metas de horas e questões resolvidas.',
+    icon: Target,
+  },
+  {
+    id: 'stats',
+    path: '/stats',
+    label: 'Desempenho e Estatísticas',
+    description: 'Classificação de matérias (Forte, Regular, Fraco) e análise de notas.',
+    icon: BarChart2,
+  },
+  {
+    id: 'observatory',
+    path: '/observatory',
+    label: 'Observatório Semanal',
+    description: 'Relatório consolidado e insights sobre hábitos e evolução de estudos.',
+    icon: Compass,
+  },
+];
+
+function renderSubjectClassificationBadge(classification: any) {
+  if (!classification) return null;
+  if (classification.level === 'STRONG') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+        <span>{classification.label}</span>
+        {classification.displayScore !== null && (
+          <span>({classification.displayScore})</span>
+        )}
+      </span>
+    );
+  }
+  if (classification.level === 'REGULAR') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+        <span>{classification.label}</span>
+        {classification.displayScore !== null && (
+          <span>({classification.displayScore})</span>
+        )}
+      </span>
+    );
+  }
+  if (classification.level === 'WEAK') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
+        <span>{classification.label}</span>
+        {classification.displayScore !== null && (
+          <span>({classification.displayScore})</span>
+        )}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+      <span>{`Dados insuficientes (${classification.questionsInWindow ?? 0}/${MIN_QUESTIONS} questões)`}</span>
+    </span>
+  );
+}
+
 export function Dashboard() {
   const { user } = useAuth();
   const { navigate } = useRouter();
@@ -94,10 +180,28 @@ export function Dashboard() {
     );
   }
 
-  // Estado Vazio: Usuário novo sem dados
-  if (!dash || !dash.hasAnyStudyData) {
+  if (!dash) {
     return (
-      <div className="space-y-8">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        Não foi possível carregar os dados do painel.
+      </div>
+    );
+  }
+
+  const today = dash.today;
+  const activeSession = dash.activeSession;
+  const pendingEvaluation = dash.pendingEvaluation;
+  const nextSession = today?.nextSession ?? null;
+  const goals: any[] = dash.goals ?? [];
+  const weekSummary = dash.weekSummary;
+  const rolling30Days = dash.rolling30Days;
+  const subjectProgress: any[] = dash.subjectProgress ?? [];
+  const classificationSummary = dash.classificationSummary ?? null;
+
+  return (
+    <div className="space-y-6">
+      {/* Banner de Boas-Vindas quando usuário novo ainda não possui dados */}
+      {!dash.hasAnyStudyData && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-6 text-white shadow-lg shadow-emerald-500/10 md:p-8">
           <div className="relative z-10 max-w-2xl">
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
@@ -138,21 +242,7 @@ export function Dashboard() {
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  const today = dash.today;
-  const activeSession = dash.activeSession;
-  const pendingEvaluation = dash.pendingEvaluation;
-  const nextSession = today?.nextSession ?? null;
-  const goals: any[] = dash.goals ?? [];
-  const weekSummary = dash.weekSummary;
-  const rolling30Days = dash.rolling30Days;
-  const subjectProgress: any[] = dash.subjectProgress ?? [];
-
-  return (
-    <div className="space-y-6">
+      )}
       {/* Cabeçalho */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -467,18 +557,33 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Progresso por Matéria (Apenas tempo e questões, sem classificação forte/fraca) */}
+      {/* Progresso por Matéria com Classificação 70/30 */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-900">
               Progresso por Matéria (Últimos 30 Dias)
             </h3>
             <p className="text-xs text-slate-500">
-              Tempo líquido estudado e volume de questões resolvidas por matéria ativa.
+              Tempo líquido estudado, volume de questões e classificação consolidada por matéria ativa.
             </p>
           </div>
-          <BookOpen className="h-4 w-4 text-slate-400" />
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            {classificationSummary && (
+              <>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-800 border border-emerald-200">
+                  Fortes: {classificationSummary.strongCount}
+                </span>
+                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 font-semibold text-amber-800 border border-amber-200">
+                  Regulares: {classificationSummary.regularCount}
+                </span>
+                <span className="rounded-full bg-rose-50 px-2.5 py-0.5 font-semibold text-rose-800 border border-rose-200">
+                  Fracos: {classificationSummary.weakCount}
+                </span>
+              </>
+            )}
+            <BookOpen className="h-4 w-4 text-slate-400" />
+          </div>
         </div>
 
         {subjectProgress.length === 0 ? (
@@ -492,14 +597,17 @@ export function Dashboard() {
                 key={subj.subjectId}
                 className="flex flex-col justify-between rounded-xl border border-slate-200 p-3.5"
               >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 rounded-full shrink-0"
-                    style={{ backgroundColor: subj.subjectColor || '#3B82F6' }}
-                  />
-                  <span className="font-semibold text-xs text-slate-900 truncate">
-                    {subj.subjectName}
-                  </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="h-3 w-3 rounded-full shrink-0"
+                      style={{ backgroundColor: subj.subjectColor || '#3B82F6' }}
+                    />
+                    <span className="font-semibold text-xs text-slate-900 truncate">
+                      {subj.subjectName}
+                    </span>
+                  </div>
+                  {renderSubjectClassificationBadge(subj.classification)}
                 </div>
                 <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
                   <span>
@@ -513,6 +621,49 @@ export function Dashboard() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Módulos da Plataforma */}
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">Módulos da Plataforma</h2>
+          <span className="text-xs text-slate-500">Navegação e Planejamento</span>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {PLATFORM_MODULES.map((m) => {
+            const Icon = m.icon;
+            return (
+              <div
+                key={m.id}
+                onClick={() => navigate(m.path)}
+                className="group relative flex cursor-pointer flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+              >
+                <div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors group-hover:bg-blue-600 group-hover:text-white">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                      Disponível
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                    {m.label}
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                    {m.description}
+                  </p>
+                </div>
+
+                <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:translate-x-0.5 transition-transform">
+                  <span>Acessar</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

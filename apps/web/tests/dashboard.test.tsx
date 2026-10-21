@@ -44,7 +44,7 @@ describe('Dashboard Analítico (@estudos/web)', () => {
     mockDashboardData = null;
   });
 
-  it('renderiza Estado Vazio orientativo para usuário novo sem dados (sem NaN e com CTAs)', () => {
+  it('renderiza Estado Vazio orientativo para usuário novo sem dados (sem NaN, com CTAs, indicadores, seções e 6 cards de Módulos da Plataforma com badge Disponível)', () => {
     mockDashboardData = {
       data: {
         referenceDate: '2026-10-20',
@@ -109,6 +109,16 @@ describe('Dashboard Analítico (@estudos/web)', () => {
           dailySeries: [],
         },
         subjectProgress: [],
+        classificationSummary: {
+          strongCount: 0,
+          regularCount: 0,
+          weakCount: 0,
+          insufficientCount: 0,
+        },
+        classificationWindow: {
+          windowStartLocalDate: '2026-09-21',
+          windowEndLocalDate: '2026-10-20',
+        },
       },
     };
 
@@ -119,9 +129,21 @@ describe('Dashboard Analítico (@estudos/web)', () => {
     expect(html).toContain('Cadastrar Matérias');
     expect(html).toContain('Planejar Agenda');
     expect(html).toContain('Iniciar Estudo Avulso');
+    expect(html).toContain('Planejado na Agenda Hoje');
+    expect(html).toContain('Tempo Efetivo Estudado Hoje');
+    expect(html).toContain('Metas Ativas');
+    expect(html).toContain('Progresso por Matéria');
+    expect(html).toContain('Módulos da Plataforma');
+    expect(html).toContain('Matérias e Assuntos');
+    expect(html).toContain('Agenda e Planejamento');
+    expect(html).toContain('Cronômetro de Estudo');
+    expect(html).toContain('Metas de Estudo');
+    expect(html).toContain('Desempenho e Estatísticas');
+    expect(html).toContain('Observatório Semanal');
+    expect(html.match(/Disponível/g)?.length).toBeGreaterThanOrEqual(6);
   });
 
-  it('renderiza card "O que estudar agora?", comparativo de hoje, metas ativas e progresso por matéria', () => {
+  it('renderiza card "O que estudar agora?", comparativo de hoje, metas ativas, progresso por matéria com classificação e módulos da plataforma', () => {
     mockDashboardData = {
       data: {
         referenceDate: '2026-10-20',
@@ -254,8 +276,37 @@ describe('Dashboard Analítico (@estudos/web)', () => {
             totalErrors: 10,
             accuracy: 80,
             hasSufficientQuestions: true,
+            classification: {
+              windowStartLocalDate: '2026-09-21',
+              windowEndLocalDate: '2026-10-20',
+              questionsInWindow: 50,
+              correctInWindow: 40,
+              evaluationsCount: 2,
+              accuracyScore: 80,
+              understandingScore: 83.5,
+              finalScore: 81.05,
+              displayScore: 81,
+              level: 'STRONG',
+              label: 'Ponto forte',
+              recommendedAction: 'MAINTAIN',
+              recommendedActionLabel: 'Manter ritmo',
+              weightsUsed: { accuracy: 0.7, understanding: 0.3 },
+              usedFallback: false,
+              lowUnderstandingSignal: false,
+              hasActivityInWindow: true,
+            },
           },
         ],
+        classificationSummary: {
+          strongCount: 1,
+          regularCount: 0,
+          weakCount: 0,
+          insufficientCount: 0,
+        },
+        classificationWindow: {
+          windowStartLocalDate: '2026-09-21',
+          windowEndLocalDate: '2026-10-20',
+        },
       },
     };
 
@@ -269,5 +320,9 @@ describe('Dashboard Analítico (@estudos/web)', () => {
     expect(html).toContain('Tempo Efetivo Estudado Hoje');
     expect(html).toContain('Álgebra Linear');
     expect(html).toContain('Matemática');
+    expect(html).toContain('Ponto forte');
+    expect(html).toContain('81');
+    expect(html).toContain('Módulos da Plataforma');
+    expect(html).toContain('Observatório Semanal');
   });
 });

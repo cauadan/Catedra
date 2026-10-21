@@ -22,6 +22,11 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
+import {
+  MIN_QUESTIONS,
+  WEAK_THRESHOLD,
+  STRONG_THRESHOLD,
+} from '@estudos/domain';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from '../contexts/RouterContext';
 import { apiFetch } from '../lib/api';
@@ -76,6 +81,77 @@ function formatMinutes(minutes: number | null | undefined): string {
   if (minutes === null || minutes === undefined || Number.isNaN(minutes)) return '0 min';
   const rounded = Math.round(minutes);
   return `${rounded} min`;
+}
+
+function formatDayMonthBr(isoDate: string | undefined | null): string {
+  if (!isoDate) return '';
+  const parts = isoDate.split('-');
+  if (parts.length !== 3) return isoDate;
+  return `${parts[2]}/${parts[1]}`;
+}
+
+function formatClassificationTooltip(classification: any): string {
+  if (!classification || !classification.weightsUsed) return '';
+  if (classification.usedFallback) {
+    return `${Math.round(classification.weightsUsed.accuracy * 100)}% acerto (sem autoavaliação)`;
+  }
+  const accPct = Math.round(classification.weightsUsed.accuracy * 100);
+  const undPct = Math.round(classification.weightsUsed.understanding * 100);
+  return `${accPct}% acerto + ${undPct}% entendimento`;
+}
+
+function renderClassificationCell(classification: any) {
+  if (!classification) {
+    return <span className="text-slate-400">—</span>;
+  }
+
+  const tooltip = formatClassificationTooltip(classification);
+
+  if (classification.level === 'INSUFFICIENT_DATA') {
+    const qInWindow = classification.questionsInWindow ?? 0;
+    return (
+      <div className="space-y-1">
+        <span
+          title={tooltip}
+          className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200"
+        >
+          {`Dados insuficientes (${qInWindow}/${MIN_QUESTIONS} questões)`}
+        </span>
+        {classification.recommendedActionLabel && (
+          <p className="text-[10px] text-slate-500">
+            Ação: <span className="font-medium text-slate-700">{classification.recommendedActionLabel}</span>
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const badgeStyle =
+    classification.level === 'STRONG'
+      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+      : classification.level === 'REGULAR'
+        ? 'bg-amber-50 text-amber-800 border-amber-200'
+        : 'bg-rose-50 text-rose-800 border-rose-200';
+
+  return (
+    <div className="space-y-1" title={tooltip}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {classification.displayScore !== null && (
+          <span className="font-bold text-slate-900">
+            {classification.displayScore}
+          </span>
+        )}
+        <span
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeStyle}`}
+        >
+          {classification.label}
+        </span>
+      </div>
+      <p className="text-[10px] text-slate-500">
+        {classification.recommendedActionLabel} • <span className="text-slate-400">{tooltip}</span>
+      </p>
+    </div>
+  );
 }
 
 export function Statistics() {
@@ -366,10 +442,10 @@ export function Statistics() {
                   ({overview.totalCorrect}/{overview.totalQuestions} acertos)
                 </span>
               </div>
-              {overview.totalQuestions > 0 && overview.totalQuestions < 10 && (
+              {overview.totalQuestions > 0 && overview.totalQuestions < MIN_QUESTIONS && (
                 <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 border border-amber-200">
                   <AlertCircle className="h-3 w-3" />
-                  Amostra em formação ({overview.totalQuestions}/10 questões)
+                  Amostra em formação ({overview.totalQuestions}/{MIN_QUESTIONS} questões)
                 </p>
               )}
               {formulas?.accuracy && (
@@ -430,7 +506,12 @@ export function Statistics() {
 
           {/* Tabela Por Matéria */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-900">Desempenho por Matéria</h3>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-sm font-bold text-slate-900">Desempenho por Matéria</h3>
+              <p className="text-[11px] text-slate-500">
+                Faixas (mín. {MIN_QUESTIONS} questões): Ponto fraco (&lt; {WEAK_THRESHOLD}), Regular (de {WEAK_THRESHOLD} a menos de {STRONG_THRESHOLD}), Ponto forte (&ge; {STRONG_THRESHOLD})
+              </p>
+            </div>
             {bySubject.length === 0 ? (
               <p className="mt-3 text-xs text-slate-500">
                 Nenhuma matéria com estudo registrado neste período.
@@ -446,6 +527,9 @@ export function Statistics() {
                       <th className="pb-2 font-semibold">Sessões</th>
                       <th className="pb-2 font-semibold">Questões (Acertos/Erros)</th>
                       <th className="pb-2 font-semibold">Taxa de Acerto</th>
+                      <th className="pb-2 font-semibold">
+                        {`Classificação (30 dias até ${formatDayMonthBr(stats?.classificationWindow?.windowEndLocalDate || stats?.endLocalDate)})`}
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -475,16 +559,12 @@ export function Statistics() {
                           {row.totalQuestions} ({row.totalCorrect}C / {row.totalErrors}E)
                         </td>
                         <td className="py-2.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900">
-                              {formatPercent(row.accuracy)}
-                            </span>
-                            {!row.hasSufficientQuestions && (
-                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                                Dados insuficientes (&lt; 10 questões)
-                              </span>
-                            )}
-                          </div>
+                          <span className="font-semibold text-slate-900">
+                            {formatPercent(row.accuracy)}
+                          </span>
+                        </td>
+                        <td className="py-2.5">
+                          {renderClassificationCell(row.classification)}
                         </td>
                       </tr>
                     ))}
@@ -496,7 +576,12 @@ export function Statistics() {
 
           {/* Tabela Por Assunto */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-900">Desempenho por Assunto</h3>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-sm font-bold text-slate-900">Desempenho por Assunto</h3>
+              <p className="text-[11px] text-slate-500">
+                Faixas (mín. {MIN_QUESTIONS} questões): Ponto fraco (&lt; {WEAK_THRESHOLD}), Regular (de {WEAK_THRESHOLD} a menos de {STRONG_THRESHOLD}), Ponto forte (&ge; {STRONG_THRESHOLD})
+              </p>
+            </div>
             {byTopic.length === 0 ? (
               <p className="mt-3 text-xs text-slate-500">
                 Nenhum assunto com estudo ou questões registradas neste período.
@@ -512,6 +597,9 @@ export function Statistics() {
                       <th className="pb-2 font-semibold">Sessões</th>
                       <th className="pb-2 font-semibold">Questões (Acertos/Erros)</th>
                       <th className="pb-2 font-semibold">Taxa de Acerto</th>
+                      <th className="pb-2 font-semibold">
+                        {`Classificação (30 dias até ${formatDayMonthBr(stats?.classificationWindow?.windowEndLocalDate || stats?.endLocalDate)})`}
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -535,16 +623,12 @@ export function Statistics() {
                           {row.totalQuestions} ({row.totalCorrect}C / {row.totalErrors}E)
                         </td>
                         <td className="py-2.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900">
-                              {formatPercent(row.accuracy)}
-                            </span>
-                            {!row.hasSufficientQuestions && (
-                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                                Dados insuficientes (&lt; 10 questões)
-                              </span>
-                            )}
-                          </div>
+                          <span className="font-semibold text-slate-900">
+                            {formatPercent(row.accuracy)}
+                          </span>
+                        </td>
+                        <td className="py-2.5">
+                          {renderClassificationCell(row.classification)}
                         </td>
                       </tr>
                     ))}
