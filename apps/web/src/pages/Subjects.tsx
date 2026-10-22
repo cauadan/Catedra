@@ -59,6 +59,7 @@ export function Subjects() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
     },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });
@@ -82,6 +83,7 @@ export function Subjects() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
     },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });
@@ -93,6 +95,7 @@ export function Subjects() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
     },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });
@@ -104,6 +107,7 @@ export function Subjects() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
     },
     onError: (err: ApiError) => setErrorMsg(err.message),
   });

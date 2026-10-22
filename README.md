@@ -1,13 +1,13 @@
 # Plataforma de Gestão e Análise de Estudos
 
-Bem-vindo ao monorepo da **Plataforma de Gestão e Análise de Estudos**. Este repositório contém a infraestrutura base (Fase 1), o gerenciamento da Árvore de Matérias e Assuntos (Fase 2), o módulo de Agenda e Planejamento (Fase 3), a Execução do Estudo com Timer por Etapa e Avaliação Pós-Sessão (Fases 4 e 5 unificadas) e o módulo de Metas de Estudo, Estatísticas, Visão de 30 Dias e Dashboard Analítico (Fases 6 e 7 unificadas).
+Bem-vindo ao monorepo da **Plataforma de Gestão e Análise de Estudos**. Este repositório contém a infraestrutura base (Fase 1), o gerenciamento da Árvore de Matérias e Assuntos (Fase 2), o módulo de Agenda e Planejamento (Fase 3), a Execução do Estudo com Timer por Etapa e Avaliação Pós-Sessão (Fases 4 e 5 unificadas), o módulo de Metas de Estudo, Estatísticas, Visão de 30 Dias e Dashboard Analítico (Fases 6 e 7 unificadas) e a **Fase 8 (Finalização do MVP: Classificação de Assuntos 70/30, Observatório Semanal e Restauração Completa do Dashboard)**.
 
 ## Estrutura do Projeto
 
 O projeto adota uma arquitetura de Monorepo com NPM Workspaces:
 - `apps/api`: Backend em Node.js com Express e Prisma ORM (PostgreSQL).
 - `apps/web`: Frontend em React 19 (Vite) com TanStack Query, Recharts e Tailwind CSS.
-- `packages/domain`: Biblioteca compartilhada contendo contratos (Zod), tipos e funções puras de regras de negócio (calendário, planejamento, cálculo de blocos, timer, metas e estatísticas agregadas).
+- `packages/domain`: Biblioteca compartilhada contendo contratos (Zod), tipos e funções puras de regras de negócio (calendário, planejamento, cálculo de blocos, timer, metas, estatísticas agregadas, limiares centralizados e motor do observatório semanal).
 
 ## Pré-requisitos
 
@@ -104,51 +104,71 @@ npm run typecheck
   - Regras e contratos de Metas (`goals.ts`):
     - Tipos (`EFFORT` e `RESULT`), métricas (`EFFECTIVE_MINUTES`, `QUESTIONS`, `TOPICS_COMPLETED`, `REVIEWS`, `ACCURACY`) e períodos (`DAY`, `WEEK`, `MONTH`).
     - Coexistência de `subject_id` e `topic_id`: ambos podem ser enviados juntos quando o assunto pertence à matéria informada (`topic.subject_id === subject_id`); se apenas `topic_id` for enviado, `subject_id` é inferido automaticamente a partir do assunto.
-    - Precedência determinística de status de metas (`deriveGoalStatus`):
-      1. `UPCOMING` (`Período futuro`): quando `referenceLocalDate < periodStartLocalDate`.
-      2. `INSUFFICIENT_DATA` (`Dados insuficientes (X/10 questões)`): exclusivo para metas `ACCURACY` com menos de 10 questões resolvidas no escopo/período (`questionsCount < 10`), avaliado antes de `ACHIEVED`/`MISSED`/`IN_PROGRESS`.
-      3. `ACHIEVED` (`Meta atingida`): quando `currentValue >= targetValue` (com `questionsCount >= 10` no caso de `ACCURACY`).
-      4. `MISSED` (`Não atingida no período`): quando `referenceLocalDate > periodEndLocalDate` e a meta não foi atingida.
-      5. `IN_PROGRESS` (`Em andamento`): nos demais casos durante o período vigente.
-      - *Nota sobre reversibilidade de `ACCURACY`:* como a taxa de acerto é uma média acumulada no período, uma meta de `ACCURACY` que estava `ACHIEVED` durante o período vigente pode retornar para `IN_PROGRESS` caso novas questões registradas reduzam a taxa acumulada abaixo de `target_value`.
+    - Precedência determinística de status de metas (`deriveGoalStatus`): `UPCOMING`, `INSUFFICIENT_DATA` (mínimo de 10 questões para acurácia), `ACHIEVED`, `MISSED` e `IN_PROGRESS`.
   - Motor Puro de Estatísticas (`statistics.ts`):
-    - Cálculos exatos em ponto flutuante no domínio (sem `Math.floor` em `effectiveMinutes = effectiveSeconds / 60` e sem `Math.round` em `effectiveness` ou `adherence`), deixando o arredondamento exclusivamente para a camada de exibição.
-    - **Fórmula de Aderência (`adherence`):** compara a soma do tempo efetivo (`effectiveSeconds`) das sessões `FINISHED` no período com a soma da duração planejada dos blocos (`planned_minutes * 60`, ou seja, `executedPlannedSeconds`) dessas mesmas sessões concluídas:
-      $$\text{adherence} = \frac{\text{effectiveSeconds}}{\text{executedPlannedSeconds}} \times 100$$
-      - Se uma sessão for encerrada antecipadamente (com etapas não iniciadas), todos os blocos planejados dessa sessão `FINISHED` continuam compondo o denominador `executedPlannedSeconds`, refletindo fielmente o quanto do roteiro da sessão foi cumprido.
-      - Se o estudante estudar por mais tempo líquido do que o previsto nos blocos da sessão concluída, a aderência pode ultrapassar `100%` (sem teto artificial).
-      - A **Carga Planejada na Agenda (`agendaPlannedMinutes`)** é mantida como indicador separado, somando `planned_minutes` apenas das `PlannedSession` com status `PLANNED` ou `DONE` (excluindo `SKIPPED` e `RESCHEDULED`).
-    - **Diferença de `effectiveness` (Período vazio vs. Sessão individual):** em uma sessão individual (`calculateSessionMetrics`), `totalSessionSeconds === 0` retorna `effectiveness = 0`; já no agregador de período (`calculatePeriodStatistics`), quando não há segundos brutos acumulados (`totalSessionSeconds === 0`), retorna `effectiveness = null` (exibido como `"—"` na interface) para distinguir ausência de dados de foco zero.
-    - **Definição de `TOPICS_COMPLETED` e `REVIEWS`:**
-      - `TOPICS_COMPLETED` (*Assuntos estudados*): quantidade de `topic_id` distintos em sessões `FINISHED` na janela com tempo efetivo `> 0`.
-      - `REVIEWS` (*Blocos de revisão concluídos*): quantidade de `SessionBlock` com `kind === 'REVIEW'`, estado derivado `'FINISHED'` (`BLOCK_FINISH`) e tempo efetivo do bloco `> 0` em sessões `FINISHED` na janela.
+    - Fórmulas exatas de Aderência (`effectiveSeconds / executedPlannedSeconds * 100`) e Foco/Efetividade (`effectiveSeconds / totalSessionSeconds * 100`).
+    - Carga Planejada na Agenda mantida como métrica independente.
 - **Backend e API REST (`apps/api`)**:
-  - `/api/goals`:
-    - `POST /`: Criação de meta protegida com `pg_advisory_xact_lock(hashtext('goals:' || userId))`, normalização automática de `period_start_local_date`, bloqueio de escopo arquivado (`400`) e retorno `409 Conflict` (`code: 'GOAL_ALREADY_EXISTS'`) em caso de duplicidade no mesmo período/métrica/escopo.
-    - `GET /`: Listagem de metas com progresso calculado em tempo real. Se o parâmetro `date` for omitido, assume automaticamente a data de "hoje" no fuso horário do usuário, normalizada para o início do `period` filtrado.
-    - `PATCH /:id`: Atualização de `target_value` revalidada contra a `metric` da meta existente (`1..100` para `ACCURACY`, `<= 100000` para métricas de esforço).
-    - `DELETE /:id`: Remoção de meta do usuário.
-    - `POST /copy`: Cópia idempotente e transacional das metas do período imediatamente anterior (ignorando metas vinculadas a matérias/assuntos arquivados e metas já existentes no destino).
-  - `/api/statistics`:
-    - `GET /?range=day|week|month|30d&date=YYYY-MM-DD&subject_id=...&topic_id=...`: Retorna `overview`, `bySubject`, `byTopic`, `dailySeries` e `formulaMetadata`. Inclui itens arquivados na resposta histórica com flag `archived: true`.
-    - **Garantia Anti-N+1:** consultas em lote constantes (`queries(10d) === queries(180d) <= 25` queries SQL em `< 2000ms`), comprovadas por teste de integração com contador de eventos do Prisma.
-  - `/api/dashboard`:
-    - `GET /?date=YYYY-MM-DD`: Endpoint único consolidando `today` (`nextSession` com flags `isLate` e `isFutureDay`, `todaySessions`), `activeSession`, `pendingEvaluation`, `goals`, `weekSummary`, `rolling30Days` e `subjectProgress` (apenas tempo e questões por matéria ativa, sem classificação forte/fraca).
+  - `/api/goals`: CRUD completo e endpoint `/copy` idempotente de metas.
+  - `/api/statistics`: agregação por dia, semana, mês e 30 dias com metadados explicáveis de fórmulas.
+  - `/api/dashboard`: agregação analítica consolidada com cards e progresso.
 - **Frontend (`apps/web`)**:
-  - Página `/goals` (`Goals.tsx`): Abas `Diárias`, `Semanais`, `Mensais` e `Visão de 30 Dias` (alimentada por `GET /api/statistics?range=30d`), modal de criação e edição de metas, botão `"Copiar metas do período anterior"`, exibição dos 5 badges de status (`GoalStatusBadge.tsx`) e etiqueta `"Arquivada"` para escopos arquivados.
-  - Página `/stats` (`Statistics.tsx`): Seletor de período (`Hoje`, `Esta Semana`, `Últimos 30 Dias`, `Este Mês`), filtros por matéria e assunto (incluindo arquivados), cards de indicadores explicáveis com fórmulas e numerador/denominador brutos, gráfico Recharts de evolução diária e tabelas `Por Matéria` e `Por Assunto` com aviso `"Dados insuficientes (< 10 questões)"`.
-  - Página `/dashboard` (`Dashboard.tsx`): Estado vazio orientativo para usuários novos, card `"O que estudar agora?"` (priorizando sessão em andamento/avaliação pendente ou próxima sessão planejada com badge `"Em atraso"`), comparativo `"Planejado na Agenda Hoje"` vs. `"Tempo Efetivo Estudado Hoje"`, metas ativas, resumo semanal/30 dias e progresso por matéria.
-  - Invalidação reativa de cache (`['dashboard']`, `['goals']`, `['statistics']`) integrada diretamente nas mutações de `Timer.tsx`, `Agenda.tsx`, `Subjects.tsx` e `Goals.tsx`.
+  - Páginas `/goals` e `/stats` com gráficos Recharts e tabelas detalhadas.
 
-### Roteiro de Validação Manual no Navegador (Fases 6 e 7)
+### Finalização do MVP: Classificação Diagnóstica, Observatório e Dashboard Completo (Fase 8)
+- **Centralização de Limiares Determinísticos (`packages/domain/src/thresholds.ts`)**:
+  - Constantes padronizadas exportadas como fonte única de verdade: `MIN_QUESTIONS = 10`, `SCORE_WEIGHT_ACCURACY = 0.7`, `SCORE_WEIGHT_UNDERSTANDING = 0.3`, `STRONG_THRESHOLD = 80`, `WEAK_THRESHOLD = 60`, `CLASSIFICATION_EPSILON = 1e-9`, `LOW_UNDERSTANDING_THRESHOLD = 50`, `MAX_TOPIC_RECOMMENDATIONS = 5`, `CLASSIFICATION_WINDOW_DAYS = 30`, `NEGLECT_DAYS = 7`, `MIN_DISTRACTION_ANALYSIS_SECONDS = 1800`, `ADHERENCE_ALERT_THRESHOLD = 70`, `PLANNING_GAP_ALERT_MINUTES = 60`, `EFFECTIVENESS_ALERT_THRESHOLD = 75`, `ACCURACY_DROP_ALERT_POINTS = 10` e `CONSISTENCY_ALERT_MIN_DAYS = 3`.
+  - Todas as funções de cálculo suportam injeção de configuração através de `DEFAULT_STUDY_THRESHOLDS`.
+- **Fórmula de Classificação 70/30 e Fallback 100% (`packages/domain/src/observatory.ts`)**:
+  - Janela móvel de 30 dias locais terminando em `classificationEndLocalDate = min(periodEndLocalDate, todayLocalDate)`.
+  - Helper único `getClassificationWindow` reutilizado por `/api/statistics`, `/api/dashboard` e `/api/observatory`, garantindo que um assunto tenha exatamente a mesma nota nas 3 telas.
+  - Se `evaluationsCount > 0`: `finalScore = 0.7 * accuracyScore + 0.3 * understandingAvgScore` (`usedFallback = false`).
+  - Se `evaluationsCount === 0`: `finalScore = accuracyScore` (`usedFallback = true`, pesos 100%/0%).
+  - Truncamento em 1 casa decimal e classificação imune a imprecisões de ponto flutuante IEEE 754 via `adjustedScore = finalScore + CLASSIFICATION_EPSILON` (`displayScore = Math.floor(adjustedScore * 10) / 10`).
+  - Sinal complementar `lowUnderstandingSignal` quando média de entendimento `< 50`.
+- **Motor do Observatório Semanal (`calculateWeeklyObservatory`)**:
+  - Comparativo semana selecionada vs. semana anterior em dias locais inteiros.
+  - Em semanas parciais em andamento (`isPartialWeek = true`), compara os `elapsedDaysCount` primeiros dias da semana contra os mesmos dias da semana anterior.
+  - Cômputo de minutos planejados até agora (`agendaPlannedElapsedMinutes`) e lacuna de planejamento (`planningGapMinutes`), onde sessões avulsas aumentam o tempo efetivo sem planejamento prévio e reduzem o gap.
+  - Matérias negligenciadas (`neglectedSubjects`): matérias ativas sem estudo nos últimos 7 dias, com proteção para matérias recém-criadas há menos de 7 dias.
+  - Alertas acionáveis determinísticos (`insightsAndRecommendations`) com severidades (`HIGH`, `MEDIUM`, `LOW`, `INFO`), limite de 5 recomendações por categoria e chips de `evidence` (`label: value (limite: threshold)`).
+- **Backend e API REST (`apps/api`)**:
+  - `GET /api/observatory?date=YYYY-MM-DD`: endpoint isolado por usuário, validado com Zod `.strict()`, rejeitando semanas futuras com `400 Bad Request` e carga em lote único sem N+1.
+  - Enriquecimento de `/api/statistics` e `/api/dashboard` com objetos de classificação e contagens na janela unificada.
+- **Frontend (`apps/web`)**:
+  - Restauração completa do `Dashboard.tsx`: renderiza sempre o painel completo, card "O que estudar agora?", indicadores, metas, progresso e a grade de **6 Módulos da Plataforma** com badge padronizado **"Disponível"**.
+  - Atualização do `Statistics.tsx`: consome `thresholds.ts`, exibe cabeçalho `"Classificação (30 dias até DD/MM)"` e tooltips dinâmicos a partir de `classification.weightsUsed`.
+  - Nova página `Observatory.tsx` conectada nas rotas `/observatory` e `/observatorio`, removendo todos os placeholders da aplicação:
+    1. Seletor de semana com navegação temporal e banner informativo de semana parcial;
+    2. Estado vazio amigável quando `hasAnyData === false` com CTAs `"Planejar na Agenda"` e `"Iniciar Estudo Agora"`;
+    3. Comparativo de métricas com deltas em relação à semana anterior;
+    4. Análise de foco, pausas e distrações (tempo real e declarada);
+    5. Classificação de assuntos em 30 dias (Pontos Fracos, Regulares, Fortes e Insuficientes);
+    6. Revisões e Práticas Recomendadas com botões `"Agendar Revisão"` e `"Agendar Prática"`;
+    7. Matérias negligenciadas e alertas com chips de evidência.
+  - Invalidação reativa de cache de `['observatory']` em mutações de Timer, Agenda, Metas, Dashboard e Matérias/Assuntos.
+
+### Roteiro de Validação Manual no Navegador (Fase 8)
 1. Suba o banco (`docker compose up -d`), rode `npm run seed:sample-6m` e inicie a aplicação (`npm run dev`).
 2. Faça login com `demo@estudos.local` / `Demo@123456`.
-3. Acesse `/dashboard` e verifique o card `"O que estudar agora?"`, os cards comparativos de hoje (`"Planejado na Agenda Hoje"` vs. `"Tempo Efetivo Estudado Hoje"`), as metas ativas e o progresso por matéria.
-4. Acesse `/goals`, alterne entre as abas `Diárias`, `Semanais`, `Mensais` e `Visão de 30 Dias`, crie uma nova meta, edite seu valor alvo e teste o botão `"Copiar metas do período anterior"`.
-5. Acesse `/stats`, alterne entre `Hoje`, `Esta Semana`, `Últimos 30 Dias` e `Este Mês`, filtre por matéria/assunto e verifique as fórmulas explicáveis nos cards e os avisos de amostra insuficiente (`< 10 questões`) nas tabelas.
+3. Acesse `/dashboard` e confira:
+   - Card "O que estudar agora?";
+   - Comparativo de hoje e metas ativas;
+   - Progresso por matéria com badges de classificação (Ponto forte, Regular, Ponto fraco);
+   - Seção **Módulos da Plataforma** com todos os 6 cards ativos com o badge **"Disponível"**.
+4. Acesse `/observatory` pelo menu lateral ou card do Dashboard e confira:
+   - O seletor de semana (Semana Anterior, Semana Atual, Avançar Semana desabilitado na semana atual);
+   - O banner de comparação de dias da semana parcial em andamento;
+   - As 5 seções analíticas completas (Comparativo, Foco e Distrações, Classificação 30d, Revisões e Práticas Recomendadas, Matérias Negligenciadas e Alertas com chips de evidência);
+   - Os botões acionáveis `"Agendar Revisão"` e `"Agendar Prática"` redirecionando para a `/agenda`.
+5. Acesse `/stats` e confira que a coluna `"Classificação (30 dias até DD/MM)"` exibe as mesmas notas e classificações do Observatório e Dashboard.
 
-## O Que Ficou de Fora (Próximas Fases)
+## O Que Ficou de Fora (Fora do Escopo do MVP)
 
-Conforme a arquitetura e o planejamento modular da plataforma:
-
-- **Fase 8**: Observatório Semanal e Classificação Diagnóstica (classificação de matérias e assuntos em Forte, Regular e Fraco, detecção de gargalos e relatório consolidado de evolução).
+Conforme a Seção 10 do documento de requisitos do produto (`01-contexto-do-projeto.md`), os seguintes itens estão explicitamente fora do escopo do MVP e não devem ser implementados:
+- Testes formais de retenção de memória;
+- Algoritmos automáticos de repetição espaçada (SRS complexo no estilo Anki/SuperMemo);
+- Indicador global e simplista de "saúde dos estudos";
+- Detecção e agrupamento estatístico de padrões de erro recorrentes;
+- Notificações externas (e-mails, push notifications ou webhooks);
+- Integrações ou recursos baseados em IA generativa (todas as regras e diagnósticos do sistema são 100% determinísticos e explicáveis).

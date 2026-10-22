@@ -97,6 +97,7 @@ export function Agenda() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -110,6 +111,7 @@ export function Agenda() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -123,6 +125,7 @@ export function Agenda() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -136,6 +139,7 @@ export function Agenda() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -148,6 +152,7 @@ export function Agenda() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
       setErrorBanner('');
     },
     onError: (err: ApiError) => setErrorBanner(err.message),
@@ -180,6 +185,7 @@ export function Agenda() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
       } else {
         setErrorBanner(err.message);
       }

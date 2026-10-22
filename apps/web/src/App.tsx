@@ -6,12 +6,12 @@ import { Shell } from './components/layout/Shell';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
-import { PlaceholderModule } from './pages/PlaceholderModule';
 import { Subjects } from './pages/Subjects';
 import { Agenda } from './pages/Agenda';
 import { Timer } from './pages/Timer';
 import { Goals } from './pages/Goals';
 import { Statistics } from './pages/Statistics';
+import { Observatory } from './pages/Observatory';
 
 /**
  * Roteamento e orquestração de páginas do frontend.
@@ -45,13 +45,8 @@ function AppRoutes() {
           <Goals />
         ) : path === '/stats' ? (
           <Statistics />
-        ) : path === '/observatory' ? (
-          <PlaceholderModule
-            id="observatory"
-            title="Observatório Semanal"
-            phase="Fase 5"
-            description="Visão abrangente e insights consolidados das semanas anteriores."
-          />
+        ) : path === '/observatory' || path === '/observatorio' ? (
+          <Observatory />
         ) : (
           <Redirect to="/dashboard" />
         )}

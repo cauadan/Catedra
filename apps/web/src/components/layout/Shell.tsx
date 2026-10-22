@@ -37,8 +37,10 @@ export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const normalizedPath = path === '/' ? '/dashboard' : path;
-  const currentItem = navigationItems.find((item) => item.path === normalizedPath) || navigationItems[0];
+  const normalizedPath =
+    path === '/' ? '/dashboard' : path === '/observatorio' ? '/observatory' : path;
+  const currentItem =
+    navigationItems.find((item) => item.path === normalizedPath) || navigationItems[0];
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -143,7 +145,7 @@ export function Shell({ children }: ShellProps) {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 antialiased">
-      {/* Gaveta com Overlay (Visí­vel em todas as telas quando aberta) */}
+      {/* Gaveta com Overlay (Visível em todas as telas quando aberta) */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div
@@ -165,7 +167,7 @@ export function Shell({ children }: ShellProps) {
         </div>
       )}
 
-      {/* Conteíºdo Principal */}
+      {/* Conteúdo Principal */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Cabeçalho Superior */}
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-8">
@@ -197,7 +199,7 @@ export function Shell({ children }: ShellProps) {
           </div>
         </header>
 
-        {/* írea de Visualização com Scroll */}
+        {/* Área de Visualização com Scroll */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           {children}
         </main>
@@ -205,4 +207,3 @@ export function Shell({ children }: ShellProps) {
     </div>
   );
 }
-

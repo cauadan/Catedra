@@ -96,6 +96,7 @@ export function Timer() {
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['goals'] });
     queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
   };
 
   // Mutações de Eventos do Timer

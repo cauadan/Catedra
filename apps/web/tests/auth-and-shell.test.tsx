@@ -39,4 +39,21 @@ describe('Testes do Frontend Web: Autenticação e Shell (@estudos/web)', () => 
     expect(subjectsItem?.path).toBe('/subjects');
     expect(subjectsItem?.isPhase2).toBe(true);
   });
+
+  it('garante que todos os 7 itens do menu lateral apontam para páginas reais implementadas (zero placeholders)', async () => {
+    const fs = await import('node:fs');
+    const url = await import('node:url');
+    const path = await import('node:path');
+    const currentDir = path.dirname(url.fileURLToPath(import.meta.url));
+    const appSource = fs.readFileSync(
+      path.resolve(currentDir, '../src/App.tsx'),
+      'utf8',
+    );
+
+    expect(appSource).not.toContain('PlaceholderModule');
+    expect(appSource).toContain('<Observatory />');
+    for (const item of navigationItems) {
+      expect(appSource).toContain(`'${item.path}'`);
+    }
+  });
 });

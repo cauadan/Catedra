@@ -96,6 +96,7 @@ export function Goals() {
     queryClient.invalidateQueries({ queryKey: ['goals'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
   };
 
   const createMutation = useMutation({
