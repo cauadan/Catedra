@@ -221,37 +221,33 @@ export function PlannedSessionModal({
     }
   }
 
-  const title =
-    mode === 'create'
-      ? 'Novo Agendamento de Estudo'
-      : mode === 'edit'
-      ? 'Editar Sessão Planejada'
-      : 'Remarcar Sessão';
-
   return (
     <div className="fixed inset-0 z-50 p-4 sm:p-6 overflow-y-auto flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl my-auto bg-white shadow-2xl border border-slate-200">
-        {/* Cabeçalho do Modal */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
-          <div className="flex items-center gap-2">
-            {mode === 'reschedule' ? (
-              <RotateCcw className="h-5 w-5 text-purple-600" />
-            ) : (
-              <Calendar className="h-5 w-5 text-blue-600" />
-            )}
-            <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl my-auto bg-white shadow-2xl border border-slate-200 p-6">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar modal"
+          className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        {/* Cabeçalho Padronizado */}
+        <div>
+          <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2.5 py-1 rounded-full w-fit mb-2">
+            Planejamento de Estudo
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <h3 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Agendar Sessão de Estudo
+          </h3>
+          <p className="text-sm text-slate-500 mt-1 mb-6">
+            Defina o horário e a distribuição das etapas de teoria, revisão e prática.
+          </p>
         </div>
 
         {/* Formulário */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {errorMsg && (
             <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700 border border-red-200">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -269,7 +265,7 @@ export function PlannedSessionModal({
                 <select
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                   required
                 >
                   {activeSubjects.map((s) => (
@@ -287,7 +283,7 @@ export function PlannedSessionModal({
                 <select
                   value={topicId}
                   onChange={(e) => setTopicId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                   required
                   disabled={availableTopics.length === 0}
                 >
@@ -304,7 +300,7 @@ export function PlannedSessionModal({
               </div>
             </div>
           ) : (
-            <div className="rounded-xl bg-purple-50 p-3 border border-purple-200 text-xs text-purple-900">
+            <div className="rounded-xl bg-emerald-50 p-3 border border-emerald-200 text-xs text-emerald-900">
               <span className="font-semibold">Sessão a remarcar:</span>{' '}
               {initialSession?.subject?.name} — {initialSession?.topic?.name}
             </div>
@@ -329,7 +325,7 @@ export function PlannedSessionModal({
                 type="datetime-local"
                 value={scheduledStartLocal}
                 onChange={(e) => setScheduledStartLocal(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 required
               />
             )}
@@ -341,7 +337,7 @@ export function PlannedSessionModal({
               <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 Duração Total da Sessão
               </label>
-              <span className="text-xs font-bold text-blue-600">
+              <span className="text-xs font-bold text-emerald-700">
                 {plannedMinutes} minutos
               </span>
             </div>
@@ -353,7 +349,7 @@ export function PlannedSessionModal({
                 max={480}
                 value={plannedMinutes}
                 onChange={(e) => handleDurationChange(Number(e.target.value))}
-                className="w-24 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 font-bold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-24 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 font-bold focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 required
               />
 
@@ -365,7 +361,7 @@ export function PlannedSessionModal({
                     onClick={() => handleDurationChange(mins)}
                     className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                       plannedMinutes === mins
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
@@ -387,7 +383,7 @@ export function PlannedSessionModal({
                 onClick={() => applyPreset('BALANCED', plannedMinutes)}
                 className={`rounded-xl border p-2 text-left transition ${
                   selectedPreset === 'BALANCED'
-                    ? 'border-blue-500 bg-blue-50/50'
+                    ? 'border-emerald-600 bg-emerald-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -400,7 +396,7 @@ export function PlannedSessionModal({
                 onClick={() => applyPreset('PRACTICE_FOCUS', plannedMinutes)}
                 className={`rounded-xl border p-2 text-left transition ${
                   selectedPreset === 'PRACTICE_FOCUS'
-                    ? 'border-blue-500 bg-blue-50/50'
+                    ? 'border-emerald-600 bg-emerald-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -413,7 +409,7 @@ export function PlannedSessionModal({
                 onClick={() => applyPreset('NEW_ONLY', plannedMinutes)}
                 className={`rounded-xl border p-2 text-left transition ${
                   selectedPreset === 'NEW_ONLY'
-                    ? 'border-blue-500 bg-blue-50/50'
+                    ? 'border-emerald-600 bg-emerald-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -438,7 +434,7 @@ export function PlannedSessionModal({
                   setSelectedPreset(null);
                   setReviewMin(Math.max(0, Number(e.target.value)));
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-800"
+                className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
               />
             </div>
 
@@ -455,7 +451,7 @@ export function PlannedSessionModal({
                   setSelectedPreset(null);
                   setNewContentMin(Math.max(0, Number(e.target.value)));
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-800"
+                className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
               />
             </div>
 
@@ -472,7 +468,7 @@ export function PlannedSessionModal({
                   setSelectedPreset(null);
                   setPracticeMin(Math.max(0, Number(e.target.value)));
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-800"
+                className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
               />
             </div>
           </div>
@@ -514,7 +510,7 @@ export function PlannedSessionModal({
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as PlannedSessionPriority)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 >
                   {PRIORITIES.map((p) => (
                     <option key={p} value={p}>
@@ -531,7 +527,7 @@ export function PlannedSessionModal({
                 <select
                   value={activityType}
                   onChange={(e) => setActivityType(e.target.value as PlannedActivityType)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 >
                   {ACTIVITY_TYPES.map((a) => (
                     <option key={a} value={a}>
@@ -554,7 +550,7 @@ export function PlannedSessionModal({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Ex: Resolver 15 exercícios da lista e revisar resumos..."
                 rows={2}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600 resize-none"
               />
             </div>
           )}
@@ -574,7 +570,7 @@ export function PlannedSessionModal({
               disabled={!isFormValid || submitting}
               className={`rounded-xl px-5 py-2 text-sm font-semibold text-white shadow-sm transition ${
                 isFormValid && !submitting
-                  ? 'bg-blue-600 hover:bg-blue-700'
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
                   : 'bg-slate-300 cursor-not-allowed'
               }`}
             >

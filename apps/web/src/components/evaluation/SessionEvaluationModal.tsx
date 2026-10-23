@@ -194,7 +194,7 @@ export function SessionEvaluationModal({
                       onClick={() => setUnderstanding(chip.value)}
                       className={`rounded-2xl border p-3 text-left transition ${
                         understanding === chip.value
-                          ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500 font-bold'
+                          ? 'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-500 font-bold'
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
@@ -249,7 +249,7 @@ export function SessionEvaluationModal({
                         onClick={() => setDifficulty(chip.value)}
                         className={`rounded-xl border py-2 text-center text-xs font-semibold transition ${
                           difficulty === chip.value
-                            ? 'border-blue-600 bg-blue-50 text-blue-800 ring-1 ring-blue-500'
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500'
                             : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
                       >
@@ -285,7 +285,7 @@ export function SessionEvaluationModal({
                             value={row.topic_id}
                             onChange={(e) => handleRowChange(idx, 'topic_id', e.target.value)}
                             disabled={isPending}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                            className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-emerald-600 focus:outline-none"
                           >
                             {activeTopics.map((t) => (
                               <option key={t.id} value={t.id}>
@@ -363,7 +363,7 @@ export function SessionEvaluationModal({
                     type="button"
                     onClick={handleAddPracticeRow}
                     disabled={isPending}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     <span>Adicionar outro assunto</span>
@@ -371,7 +371,7 @@ export function SessionEvaluationModal({
 
                   <div className="text-xs font-semibold text-slate-600">
                     Aproveitamento Geral:{' '}
-                    <span className="font-mono font-bold text-blue-600 text-sm">
+                    <span className="font-mono font-bold text-emerald-700 text-sm">
                       {formatPercent(aggregateAccuracy.accuracy)}
                     </span>
                   </div>
@@ -394,7 +394,7 @@ export function SessionEvaluationModal({
                   onChange={(e) => setNotes(e.target.value)}
                   disabled={isPending}
                   placeholder="Registre o que aprendeu, dúvidas pendentes ou pontos para a próxima revisão..."
-                  className="w-full rounded-2xl border border-slate-300 p-3 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-2xl border border-slate-300 p-3 text-xs text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
               </div>
 
@@ -470,7 +470,7 @@ export function SessionEvaluationModal({
             <button
               type="button"
               onClick={onFinishedSuccess}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-blue-700 transition"
+              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-8 py-3.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition"
             >
               <Calendar className="h-4 w-4" />
               <span>Ir para a Agenda</span>

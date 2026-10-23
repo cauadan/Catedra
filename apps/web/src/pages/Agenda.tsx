@@ -319,7 +319,7 @@ export function Agenda() {
       {/* Conteúdo Principal: Estado de Carregamento, Erro ou Grade */}
       {loadingSessions ? (
         <div className="flex flex-col items-center justify-center p-16 rounded-2xl border border-slate-200 bg-white">
-          <RefreshCw className="h-8 w-8 text-blue-600 animate-spin mb-3" />
+          <RefreshCw className="h-8 w-8 text-emerald-600 animate-spin mb-3" />
           <p className="text-sm font-medium text-slate-600">
             Carregando agenda de estudos...
           </p>
@@ -358,7 +358,7 @@ export function Agenda() {
                 onClick={() =>
                   setModalState({ isOpen: true, mode: 'create', session: null })
                 }
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition"
               >
                 <Plus className="h-4 w-4" />
                 Agendar Primeiro Estudo
@@ -394,7 +394,7 @@ export function Agenda() {
                 key={dayStr}
                 className={`flex flex-col rounded-2xl border p-3 min-h-[350px] min-w-0 overflow-hidden transition ${
                   isToday
-                    ? 'border-blue-400 bg-blue-50/20 ring-1 ring-blue-300'
+                    ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-200'
                     : 'border-slate-200 bg-slate-50/50'
                 }`}
               >
@@ -406,7 +406,7 @@ export function Agenda() {
                     </span>
                     <span
                       className={`text-sm font-black ${
-                        isToday ? 'text-blue-600' : 'text-slate-800'
+                        isToday ? 'text-emerald-700' : 'text-slate-800'
                       }`}
                     >
                       {d}/{m}
@@ -414,7 +414,7 @@ export function Agenda() {
                   </div>
 
                   {isToday && (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                       Hoje
                     </span>
                   )}

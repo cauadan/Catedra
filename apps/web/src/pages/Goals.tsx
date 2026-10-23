@@ -220,7 +220,7 @@ export function Goals() {
             <button
               type="button"
               onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
             >
               <Plus className="h-4 w-4" />
               <span>Criar Meta</span>
@@ -244,7 +244,7 @@ export function Goals() {
               onClick={() => setActiveTab(tab.id as GoalTab)}
               className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                 activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -292,7 +292,7 @@ export function Goals() {
       )}
 
       {infoMsg && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-medium text-blue-700">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-700">
           {infoMsg}
         </div>
       )}
@@ -353,7 +353,7 @@ export function Goals() {
 
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-blue-600" />
+              <TrendingUp className="h-4 w-4 text-emerald-600" />
               <h3 className="text-sm font-bold text-slate-900">
                 Evolução Diária nos Últimos 30 Dias (Minutos Efetivos vs Planejados)
               </h3>
@@ -378,7 +378,7 @@ export function Goals() {
       ) : goalsList.length === 0 ? (
         /* Estado Vazio */
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <Target className="h-6 w-6" />
           </div>
           <h2 className="mt-3 text-base font-bold text-slate-900">
@@ -392,7 +392,7 @@ export function Goals() {
             <button
               type="button"
               onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
             >
               <Plus className="h-4 w-4" />
               <span>Criar Meta</span>
@@ -490,7 +490,7 @@ export function Goals() {
                       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                         <div
                           className={`h-full rounded-full transition-all ${
-                            g.status === 'ACHIEVED' ? 'bg-emerald-500' : 'bg-blue-600'
+                            g.status === 'ACHIEVED' ? 'bg-emerald-500' : 'bg-emerald-600'
                           }`}
                           style={{ width: `${barWidth}%` }}
                         />
@@ -641,7 +641,7 @@ export function Goals() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
                 >
                   Salvar Meta
                 </button>

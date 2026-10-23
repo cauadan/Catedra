@@ -270,7 +270,7 @@ export function Statistics() {
             <button
               type="button"
               onClick={() => setReferenceDate(getTodayIso(timezone))}
-              className="px-2 text-xs font-semibold text-slate-700 hover:text-blue-600"
+              className="px-2 text-xs font-semibold text-slate-700 hover:text-emerald-700"
             >
               {stats
                 ? `${formatDateBr(stats.startLocalDate)} – ${formatDateBr(stats.endLocalDate)}`
@@ -295,7 +295,7 @@ export function Statistics() {
                 setFilterSubjectId(e.target.value);
                 setFilterTopicId('');
               }}
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-blue-500 focus:outline-none"
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-emerald-600 focus:outline-none"
             >
               <option value="">Todas as matérias</option>
               {subjects.map((s) => (
@@ -309,7 +309,7 @@ export function Statistics() {
               aria-label="Filtrar por Assunto"
               value={filterTopicId}
               onChange={(e) => setFilterTopicId(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-blue-500 focus:outline-none"
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-emerald-600 focus:outline-none"
             >
               <option value="">Todos os assuntos</option>
               {topics.map((t) => (
@@ -329,7 +329,7 @@ export function Statistics() {
       ) : isEmptyState ? (
         /* Estado Vazio */
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
             <BarChart2 className="h-6 w-6" />
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-900">
@@ -344,13 +344,13 @@ export function Statistics() {
               onClick={() => navigate('/agenda')}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
             >
-              <Calendar className="h-4 w-4 text-blue-600" />
+              <Calendar className="h-4 w-4 text-emerald-600" />
               <span>Planejar na Agenda</span>
             </button>
             <button
               type="button"
               onClick={() => navigate('/timer')}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
             >
               <Play className="h-4 w-4" />
               <span>Iniciar Estudo Agora</span>
@@ -379,7 +379,7 @@ export function Statistics() {
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-slate-500">Tempo Efetivo Estudado</p>
-                <Clock className="h-4 w-4 text-blue-600" />
+                <Clock className="h-4 w-4 text-emerald-600" />
               </div>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {formatMinutes(overview.effectiveMinutes)}
@@ -414,7 +414,7 @@ export function Statistics() {
                 <p className="text-xs font-semibold text-slate-500">
                   Aderência das Sessões Concluídas
                 </p>
-                <Target className="h-4 w-4 text-indigo-600" />
+                <Target className="h-4 w-4 text-emerald-600" />
               </div>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {formatPercent(overview.adherence)}
@@ -652,7 +652,7 @@ export function Statistics() {
           <button
             type="button"
             onClick={() => refetch?.()}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
           >
             Tentar Novamente
           </button>

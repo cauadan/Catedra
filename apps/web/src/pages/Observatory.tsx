@@ -196,7 +196,7 @@ export function Observatory() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700">
               <Compass className="h-5 w-5" />
             </div>
             <h1 className="text-2xl font-bold text-slate-900">Observatório Semanal</h1>
@@ -237,8 +237,8 @@ export function Observatory() {
 
       {/* Banner de Semana Parcial */}
       {isPartialWeek && (
-        <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-800">
-          <Info className="h-4 w-4 shrink-0 text-blue-600" />
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+          <Info className="h-4 w-4 shrink-0 text-emerald-600" />
           <span>
             {`Comparando os ${elapsedDaysCount} primeiros dias desta semana com os mesmos ${elapsedDaysCount} dias da semana anterior`}
           </span>
@@ -262,7 +262,7 @@ export function Observatory() {
           <button
             type="button"
             onClick={() => refetch?.()}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
           >
             Tentar Novamente
           </button>
@@ -270,7 +270,7 @@ export function Observatory() {
       ) : !hasAnyData ? (
         /* Estado Vazio Amigável */
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <Compass className="h-6 w-6" />
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-900">
@@ -283,7 +283,7 @@ export function Observatory() {
             <button
               type="button"
               onClick={() => navigate('/agenda')}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
             >
               <Calendar className="h-4 w-4" />
               <span>Planejar na Agenda</span>
@@ -317,7 +317,7 @@ export function Observatory() {
               {/* Card 1: Tempo Efetivo */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
                 <p className="text-[11px] font-semibold text-slate-500">Tempo Efetivo Estudado</p>
-                <p className="mt-1 text-xl font-bold text-blue-600">
+                <p className="mt-1 text-xl font-bold text-emerald-700">
                   {formatMinutes(selectedWeek?.effectiveMinutes)}
                 </p>
                 <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
@@ -401,7 +401,7 @@ export function Observatory() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
                 <p className="text-[11px] font-semibold text-slate-500">Tempo Líquido Efetivo</p>
-                <p className="mt-1 text-lg font-bold text-blue-600">
+                <p className="mt-1 text-lg font-bold text-emerald-700">
                   {formatMinutes(
                     pauseAndDistraction?.effectiveMinutes ??
                       (pauseAndDistraction?.effectiveSeconds
@@ -889,7 +889,7 @@ export function Observatory() {
                           <button
                             type="button"
                             onClick={() => navigate(insight.actionPath || '/agenda')}
-                            className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                            className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
                           >
                             {insight.actionLabel || insight.recommendedActionLabel || 'Agendar'}
                           </button>

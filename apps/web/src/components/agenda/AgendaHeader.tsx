@@ -80,7 +80,7 @@ export function AgendaHeader({
       {/* Título e Navegação Temporal */}
       <div>
         <div className="flex items-center gap-2">
-          <CalendarIcon className="h-6 w-6 text-blue-600" />
+          <CalendarIcon className="h-6 w-6 text-emerald-600" />
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Agenda de Estudos
           </h1>
@@ -137,7 +137,7 @@ export function AgendaHeader({
             onClick={() => onViewChange('day')}
             className={`px-3 py-1.5 rounded-md transition ${
               view === 'day'
-                ? 'bg-white text-blue-600 shadow-sm'
+                ? 'bg-white text-emerald-700 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -148,7 +148,7 @@ export function AgendaHeader({
             onClick={() => onViewChange('week')}
             className={`px-3 py-1.5 rounded-md transition ${
               view === 'week'
-                ? 'bg-white text-blue-600 shadow-sm'
+                ? 'bg-white text-emerald-700 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -160,7 +160,7 @@ export function AgendaHeader({
         <button
           type="button"
           onClick={onNewSession}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition"
         >
           <Plus className="h-4 w-4" />
           Novo Planejamento

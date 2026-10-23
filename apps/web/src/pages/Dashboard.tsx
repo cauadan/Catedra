@@ -189,7 +189,7 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => refetch?.()}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
         >
           Tentar Novamente
         </button>
@@ -268,7 +268,7 @@ export function Dashboard() {
             onClick={() => navigate('/goals')}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <Target className="h-4 w-4 text-blue-600" />
+            <Target className="h-4 w-4 text-emerald-600" />
             <span>Metas</span>
           </button>
           <button
@@ -283,10 +283,10 @@ export function Dashboard() {
       </div>
 
       {/* Card de Ação Imediata: "O que estudar agora?" */}
-      <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 p-5 shadow-sm">
+      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-5 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
               <Clock className="h-3.5 w-3.5" />
               O que estudar agora?
             </span>
@@ -355,7 +355,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => navigate('/timer')}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
               >
                 <Play className="h-4 w-4" />
                 <span>Retomar Cronômetro</span>
@@ -374,7 +374,7 @@ export function Dashboard() {
                 type="button"
                 onClick={() => startPlannedSessionMutation.mutate(nextSession.id)}
                 disabled={startPlannedSessionMutation.isPending}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
               >
                 <Play className="h-4 w-4" />
                 <span>Iniciar Estudo</span>
@@ -407,7 +407,7 @@ export function Dashboard() {
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold text-slate-500">Tempo Efetivo Estudado Hoje</p>
-          <p className="mt-2 text-2xl font-bold text-blue-600">
+          <p className="mt-2 text-2xl font-bold text-emerald-700">
             {formatMinutes(today?.effectiveMinutes)}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">
@@ -448,7 +448,7 @@ export function Dashboard() {
             <button
               type="button"
               onClick={() => navigate('/goals')}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
             >
               <span>Ver todas</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -463,7 +463,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => navigate('/goals')}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
               >
                 <Target className="h-3.5 w-3.5" />
                 <span>Criar Meta</span>
@@ -514,7 +514,7 @@ export function Dashboard() {
             <button
               type="button"
               onClick={() => navigate('/stats')}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
             >
               <span>Detalhes</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -646,15 +646,15 @@ export function Dashboard() {
               <div
                 key={m.id}
                 onClick={() => navigate(m.path)}
-                className="group relative flex cursor-pointer flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                className="group relative flex cursor-pointer flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-600 hover:shadow-md"
               >
                 <div>
                   <div className="mb-3 flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors group-hover:bg-blue-600 group-hover:text-white">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
                       <Icon className="h-5 w-5" />
                     </div>
                   </div>
-                  <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                  <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">
                     {m.label}
                   </h3>
                   <p className="mt-1 text-xs text-slate-500 leading-relaxed">
@@ -662,7 +662,7 @@ export function Dashboard() {
                   </p>
                 </div>
 
-                <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:translate-x-0.5 transition-transform">
+                <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-emerald-700 group-hover:translate-x-0.5 transition-transform">
                   <span>Acessar</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </div>

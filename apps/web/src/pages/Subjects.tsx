@@ -28,7 +28,7 @@ function CustomDialog({ isOpen, title, message, isConfirm, defaultValue, onClose
         )}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancelar</button>
-          <button onClick={() => onConfirm(isConfirm ? undefined : val)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">{isConfirm ? 'Confirmar' : 'Salvar'}</button>
+          <button onClick={() => onConfirm(isConfirm ? undefined : val)} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">{isConfirm ? 'Confirmar' : 'Salvar'}</button>
         </div>
       </div>
     </div>
@@ -175,7 +175,7 @@ export function Subjects() {
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500" />
             <span>Mostrar arquivados</span>
           </label>
-          <button onClick={handleAddSubject} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center shadow-sm">
+          <button onClick={handleAddSubject} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center shadow-sm">
             <Plus size={16} className="mr-2" /> Nova Matéria
           </button>
         </div>
@@ -210,7 +210,7 @@ export function Subjects() {
                     </h2>
                   </div>
                   <div className="flex space-x-3">
-                    <button onClick={() => handleAddTopic(subject.id)} className="text-sm text-blue-600 hover:text-blue-800 flex items-center">
+                    <button onClick={() => handleAddTopic(subject.id)} className="text-sm text-emerald-700 hover:text-emerald-800 flex items-center">
                       <Plus size={14} className="mr-1" /> Assunto
                     </button>
                     <button onClick={() => updateSubject.mutate({ id: subject.id, data: { archived: !subject.archived } })} className="text-sm text-orange-600 hover:text-orange-800 flex items-center">

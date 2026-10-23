@@ -86,14 +86,14 @@ export function Shell({ children }: ShellProps) {
                 onClick={() => setMobileMenuOpen(false)}
                 className={`group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700 shadow-sm font-semibold'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm font-semibold'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon
                     className={`h-4 w-4 transition-colors ${
-                      isActive ? 'text-blue-700' : 'text-slate-400 group-hover:text-slate-600'
+                      isActive ? 'text-emerald-700' : 'text-slate-400 group-hover:text-slate-600'
                     }`}
                   />
                   <span>{item.label}</span>
@@ -107,7 +107,7 @@ export function Shell({ children }: ShellProps) {
       {/* Cartão de Perfil do Usuário e Logout */}
       <div className="border-t border-slate-200 p-4">
         <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-xs text-white">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 font-semibold text-xs text-white">
             {userInitials}
           </div>
           <div className="min-w-0 flex-1">
@@ -175,7 +175,7 @@ export function Shell({ children }: ShellProps) {
             <div className="hidden sm:flex flex-col text-right">
               <span className="text-xs font-semibold text-slate-800">{user?.name}</span>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-semibold text-xs border border-blue-200">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 font-semibold text-xs border border-emerald-200">
               {userInitials}
             </div>
           </div>
