@@ -105,9 +105,10 @@ function renderClassificationCell(classification: any) {
     return <span className="text-slate-400">—</span>;
   }
 
+  const level = classification.level ?? classification.classification;
   const tooltip = formatClassificationTooltip(classification);
 
-  if (classification.level === 'INSUFFICIENT_DATA') {
+  if (level === 'INSUFFICIENT_DATA') {
     const qInWindow = classification.questionsInWindow ?? 0;
     return (
       <div className="space-y-1">
@@ -127,9 +128,9 @@ function renderClassificationCell(classification: any) {
   }
 
   const badgeStyle =
-    classification.level === 'STRONG'
+    level === 'STRONG'
       ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-      : classification.level === 'REGULAR'
+      : level === 'REGULAR'
         ? 'bg-amber-50 text-amber-800 border-amber-200'
         : 'bg-rose-50 text-rose-800 border-rose-200';
 
@@ -164,7 +165,7 @@ export function Statistics() {
   const [filterSubjectId, setFilterSubjectId] = useState<string>('');
   const [filterTopicId, setFilterTopicId] = useState<string>('');
 
-  const { data: statsRes, isLoading } = useQuery<{ data: any }>({
+  const { data: statsRes, isLoading, isError, error, refetch } = useQuery<{ data: any }>({
     queryKey: ['statistics', range, referenceDate, filterSubjectId, filterTopicId],
     queryFn: () => {
       const params = new URLSearchParams({
@@ -173,18 +174,18 @@ export function Statistics() {
       });
       if (filterSubjectId) params.set('subject_id', filterSubjectId);
       if (filterTopicId) params.set('topic_id', filterTopicId);
-      return apiFetch(`/statistics?${params.toString()}`);
+      return apiFetch(`/api/statistics?${params.toString()}`);
     },
   });
 
   const { data: subjectsRes } = useQuery<any>({
     queryKey: ['subjects', 'all-for-stats'],
-    queryFn: () => apiFetch('/subjects?include_archived=true'),
+    queryFn: () => apiFetch('/api/subjects?include_archived=true'),
   });
 
   const { data: topicsRes } = useQuery<any>({
     queryKey: ['topics', 'all-for-stats'],
-    queryFn: () => apiFetch('/topics?include_archived=true'),
+    queryFn: () => apiFetch('/api/topics?include_archived=true'),
   });
 
   const subjects: SubjectOption[] = useMemo(() => {
@@ -199,7 +200,7 @@ export function Statistics() {
     return list.filter((t) => t.subject_id === filterSubjectId);
   }, [topicsRes, filterSubjectId]);
 
-  const stats = statsRes?.data ?? null;
+  const stats = statsRes?.data ?? statsRes ?? null;
   const overview = stats?.overview ?? null;
   const formulas = stats?.formulaMetadata ?? null;
   const bySubject: any[] = stats?.bySubject ?? [];
@@ -638,7 +639,25 @@ export function Statistics() {
             )}
           </div>
         </>
-      ) : null}
+      ) : (
+        <div className="rounded-xl border border-rose-200 bg-rose-50/40 p-8 text-center">
+          <AlertCircle className="mx-auto h-8 w-8 text-rose-600" />
+          <h3 className="mt-3 text-base font-bold text-slate-900">
+            Não foi possível carregar as estatísticas
+          </h3>
+          <p className="mt-1 text-xs text-slate-600">
+            {(isError && (error as any)?.message) ||
+              'Ocorreu um erro ao buscar os dados do período selecionado.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch?.()}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      )}
     </div>
   );
 }

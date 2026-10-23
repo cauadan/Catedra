@@ -150,14 +150,14 @@ export function Dashboard() {
   const timezone = user?.timezone || 'America/Sao_Paulo';
   const todayIso = getTodayIso(timezone);
 
-  const { data: dashRes, isLoading } = useQuery<{ data: any }>({
+  const { data: dashRes, isLoading, isError, error, refetch } = useQuery<{ data: any }>({
     queryKey: ['dashboard', todayIso],
-    queryFn: () => apiFetch(`/dashboard?date=${todayIso}`),
+    queryFn: () => apiFetch(`/api/dashboard?date=${todayIso}`),
   });
 
   const startPlannedSessionMutation = useMutation({
     mutationFn: (plannedSessionId: string) =>
-      apiFetch('/study-sessions', {
+      apiFetch('/api/study-sessions', {
         method: 'POST',
         body: JSON.stringify({ planned_session_id: plannedSessionId }),
       }),
@@ -172,7 +172,7 @@ export function Dashboard() {
     },
   });
 
-  const dash = dashRes?.data ?? null;
+  const dash = dashRes?.data ?? dashRes ?? null;
 
   if (isLoading) {
     return (
@@ -182,10 +182,17 @@ export function Dashboard() {
     );
   }
 
-  if (!dash) {
+  if (isError || Boolean(error) || !dash) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-        Não foi possível carregar os dados do painel.
+        <p>Não foi possível carregar os dados do painel.</p>
+        <button
+          type="button"
+          onClick={() => refetch?.()}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+        >
+          Tentar Novamente
+        </button>
       </div>
     );
   }

@@ -84,17 +84,22 @@ export function Observatory() {
 
   const [referenceDate, setReferenceDate] = useState<string>(todayIso);
 
-  const { data: obsRes, isLoading } = useQuery<{ data: any }>({
+  const {
+    data: obsRes,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<{ data: any }>({
     queryKey: ['observatory', referenceDate],
-    queryFn: () => apiFetch(`/observatory?date=${referenceDate}`),
+    queryFn: () => apiFetch(`/api/observatory?date=${referenceDate}`),
   });
 
-  const obs = obsRes?.data ?? null;
+  const obs = obsRes?.data ?? obsRes ?? null;
 
   const isCurrentWeek = Boolean(obs?.isCurrentWeek) || referenceDate >= todayIso;
   const isPartialWeek = Boolean(obs?.isPartialWeek);
   const elapsedDaysCount = obs?.elapsedDaysCount ?? 7;
-  const hasAnyData = obs?.hasAnyData ?? false;
 
   const handleNavigateWeek = (step: -1 | 1 | 0) => {
     if (step === 0) {
@@ -116,6 +121,24 @@ export function Observatory() {
   };
   const neglectedSubjects: any[] = obs?.neglectedSubjects ?? [];
   const insights: any[] = obs?.insightsAndRecommendations ?? [];
+
+  const hasAnyData = Boolean(
+    obs?.hasAnyData ||
+      (selectedWeek &&
+        (selectedWeek.effectiveSeconds > 0 ||
+          selectedWeek.effectiveMinutes > 0 ||
+          selectedWeek.agendaPlannedMinutes > 0 ||
+          selectedWeek.totalQuestions > 0)) ||
+      (previousWeek &&
+        (previousWeek.effectiveSeconds > 0 ||
+          previousWeek.effectiveMinutes > 0 ||
+          previousWeek.totalQuestions > 0)) ||
+      (topicClassification.weak && topicClassification.weak.length > 0) ||
+      (topicClassification.regular && topicClassification.regular.length > 0) ||
+      (topicClassification.strong && topicClassification.strong.length > 0) ||
+      (topicClassification.insufficient && topicClassification.insufficient.length > 0) ||
+      (obs?.subjectClassification && obs.subjectClassification.length > 0)
+  );
 
   // Revisões e práticas recomendadas: tópicos fracos (revisão + prática) e regulares (mais prática)
   const recommendationsList = useMemo(() => {
@@ -192,6 +215,24 @@ export function Observatory() {
       {isLoading ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
           Carregando dados do observatório...
+        </div>
+      ) : (isError || Boolean(error)) && !obs ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50/40 p-8 text-center">
+          <AlertCircle className="mx-auto h-8 w-8 text-rose-600" />
+          <h3 className="mt-3 text-base font-bold text-slate-900">
+            Não foi possível carregar o observatório
+          </h3>
+          <p className="mt-1 text-xs text-slate-600">
+            {(error as any)?.message ||
+              'Ocorreu um erro ao buscar os dados do observatório semanal.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch?.()}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+          >
+            Tentar Novamente
+          </button>
         </div>
       ) : !hasAnyData ? (
         /* Estado Vazio Amigável */
@@ -532,6 +573,96 @@ export function Observatory() {
                   </div>
                 )}
               </div>
+
+              {/* Pontos Fortes */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-emerald-900">
+                    Pontos Fortes ({topicClassification.strong?.length || 0})
+                  </h3>
+                  <span className="text-[10px] text-emerald-700">&ge; {STRONG_THRESHOLD}</span>
+                </div>
+                {(!topicClassification.strong || topicClassification.strong.length === 0) ? (
+                  <p className="mt-2 text-xs text-slate-500">Nenhum ponto forte consolidado.</p>
+                ) : (
+                  <div className="mt-2.5 space-y-2">
+                    {topicClassification.strong.map((item: any) => (
+                      <div
+                        key={item.topicId}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2.5 border border-emerald-100 shadow-sm"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full"
+                              style={{ backgroundColor: item.subjectColor || '#10B981' }}
+                            />
+                            <span className="text-xs font-bold text-slate-900">
+                              {item.topicName}
+                            </span>
+                            <span className="text-[10px] text-slate-500">({item.subjectName})</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]">
+                            <span className="font-semibold text-emerald-700">
+                              Nota: {item.classification?.displayScore ?? '—'}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                          {item.classification?.recommendedActionLabel || 'Manter manutenção'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Dados Insuficientes */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-800">
+                    Dados Insuficientes ({topicClassification.insufficient?.length || 0})
+                  </h3>
+                  <span className="text-[10px] text-slate-500">&lt; {MIN_QUESTIONS} questões</span>
+                </div>
+                {(!topicClassification.insufficient || topicClassification.insufficient.length === 0) ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Todos os assuntos ativos possuem amostra suficiente.
+                  </p>
+                ) : (
+                  <div className="mt-2.5 space-y-2">
+                    {topicClassification.insufficient.map((item: any) => (
+                      <div
+                        key={item.topicId}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2.5 border border-slate-200 shadow-sm"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full"
+                              style={{ backgroundColor: item.subjectColor || '#64748B' }}
+                            />
+                            <span className="text-xs font-bold text-slate-900">
+                              {item.topicName}
+                            </span>
+                            <span className="text-[10px] text-slate-500">({item.subjectName})</span>
+                          </div>
+                          <div className="mt-1 text-[10px] text-slate-500">
+                            {`Amostra: ${item.classification?.questionsInWindow ?? 0}/${MIN_QUESTIONS} questões`}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/agenda')}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-900"
+                        >
+                          <span>Resolver Questões</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -555,8 +686,8 @@ export function Observatory() {
             ) : (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {recommendationsList.map((item: any) => {
-                  const isWeak =
-                    item.kind === 'WEAK' || item.classification?.level === 'WEAK';
+                  const level = item.classification?.level ?? item.classification?.classification;
+                  const isWeak = item.kind === 'WEAK' || level === 'WEAK';
                   return (
                     <div
                       key={item.topicId}

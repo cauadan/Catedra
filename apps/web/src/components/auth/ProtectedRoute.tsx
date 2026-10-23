@@ -8,10 +8,10 @@ interface ProtectedRouteProps {
 
 /**
  * Componente de proteção de rotas privadas.
- * Redireciona usuários não autenticados para a tela de login (/login).
+ * Redireciona usuários não autenticados (user === null e !isLoading) para a tela de login (/login).
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -24,7 +24,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (user === null || !isAuthenticated) {
     return <Redirect to="/login" />;
   }
 

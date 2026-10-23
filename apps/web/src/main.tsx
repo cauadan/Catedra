@@ -6,11 +6,12 @@ import './index.css';
 
 /**
  * Instância global do TanStack Query Client para gerenciamento de cache assíncrono.
+ * Queries com status 401 não fazem retentativas.
  */
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error: any) => error?.status !== 401 && failureCount < 2,
       refetchOnWindowFocus: false,
     },
   },

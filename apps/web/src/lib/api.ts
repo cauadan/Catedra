@@ -8,7 +8,12 @@ export class ApiError extends Error {
   public readonly code: string;
   public readonly details?: ApiErrorDetail[];
 
-  constructor(message: string, status: number, code: string = 'API_ERROR', details?: ApiErrorDetail[]) {
+  constructor(
+    message: string,
+    status: number,
+    code: string = 'API_ERROR',
+    details?: ApiErrorDetail[]
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -17,12 +22,46 @@ export class ApiError extends Error {
   }
 }
 
+export const AUTH_UNAUTHORIZED_EVENT = 'auth:unauthorized';
+
+function handleGlobalUnauthorized(url: string): void {
+  if (typeof window === 'undefined') return;
+
+  // Ignora falhas de credenciais nas próprias rotas públicas de login/cadastro
+  if (url.includes('/api/auth/login') || url.includes('/api/auth/register')) {
+    return;
+  }
+
+  try {
+    window.localStorage?.removeItem('user');
+    window.sessionStorage?.removeItem('user');
+  } catch {
+    // Ignora bloqueios de storage do navegador
+  }
+
+  window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+
+  const currentPath = window.location.hash.startsWith('#/')
+    ? window.location.hash.slice(1)
+    : window.location.pathname || '/';
+
+  if (currentPath !== '/login' && currentPath !== '/register') {
+    window.history.replaceState(null, '', '/login');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }
+}
+
 /**
  * Cliente HTTP base para comunicação com o backend (apps/api).
- * Garante envio e recepção de cookies httpOnly via credentials: 'include'.
+ * Garante prefixo /api, envio e recepção de cookies httpOnly via credentials: 'include'
+ * e interceptação global de status 401 Unauthorized.
  */
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url =
+    cleanEndpoint.startsWith('/api/') || cleanEndpoint === '/api'
+      ? cleanEndpoint
+      : `/api${cleanEndpoint}`;
 
   const headers = new Headers(options.headers || {});
   if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
@@ -41,8 +80,11 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     let errorDetails: ApiErrorDetail[] | undefined;
 
     try {
-      const data = (await response.json()) as ApiErrorEnvelope;
-      if (data?.error) {
+      const data = (await response.json()) as ApiErrorEnvelope & { error?: any };
+      if (typeof data?.error === 'string') {
+        errorMessage = data.error;
+        errorCode = response.status === 401 ? 'UNAUTHORIZED' : errorCode;
+      } else if (data?.error) {
         errorMessage = data.error.message || errorMessage;
         errorCode = data.error.code || errorCode;
         errorDetails = data.error.details;
@@ -50,11 +92,16 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     } catch {
       if (response.status === 401) {
         errorMessage = 'Sessão expirada ou não autorizado.';
+        errorCode = 'UNAUTHORIZED';
       } else if (response.status === 404) {
         errorMessage = 'Recurso não encontrado.';
       } else if (response.status >= 500) {
         errorMessage = 'Erro interno do servidor. Tente novamente mais tarde.';
       }
+    }
+
+    if (response.status === 401) {
+      handleGlobalUnauthorized(url);
     }
 
     throw new ApiError(errorMessage, response.status, errorCode, errorDetails);

@@ -13,6 +13,13 @@ import { Goals } from './pages/Goals';
 import { Statistics } from './pages/Statistics';
 import { Observatory } from './pages/Observatory';
 
+export const defaultQueryClientOptions = {
+  queries: {
+    retry: (failureCount: number, error: any) => error?.status !== 401 && failureCount < 2,
+    refetchOnWindowFocus: false,
+  },
+};
+
 /**
  * Roteamento e orquestração de páginas do frontend.
  */

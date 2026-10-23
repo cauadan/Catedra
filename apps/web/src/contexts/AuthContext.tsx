@@ -7,7 +7,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { User, LoginInput, RegisterInput, AuthContextType } from '../types/auth';
-import { api, ApiError } from '../lib/api';
+import { api, AUTH_UNAUTHORIZED_EVENT } from '../lib/api';
 import { detectBrowserTimezone } from '../lib/timezone';
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -19,14 +19,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchCurrentUser = useCallback(async () => {
     try {
       const response = await api.get<{ user: User }>('/api/auth/me');
-      setUser(response.user);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        setUser(null);
-      } else {
-        // Erro de rede ou indisponibilidade temporária
-        setUser(null);
-      }
+      setUser(response?.user ?? null);
+    } catch {
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -35,6 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchCurrentUser();
   }, [fetchCurrentUser]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onUnauthorized = () => {
+      setUser(null);
+      setIsLoading(false);
+    };
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    };
+  }, []);
 
   const login = useCallback(async (credentials: LoginInput): Promise<User> => {
     const response = await api.post<{ user: User }>('/api/auth/login', credentials);
@@ -73,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isLoading,
-        isAuthenticated: !!user,
+        isAuthenticated: Boolean(user),
         login,
         register,
         logout,

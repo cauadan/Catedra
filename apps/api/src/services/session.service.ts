@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { CookieOptions } from 'express';
 
 export interface SessionData {
@@ -12,6 +15,7 @@ export const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias em ms
 
 /**
  * Retorna as opções padrão para o cookie de sessão httpOnly.
+ * Em desenvolvimento (NODE_ENV !== 'production'), secure é estritamente false.
  */
 export function getSessionCookieOptions(): CookieOptions {
   return {
@@ -23,15 +27,29 @@ export function getSessionCookieOptions(): CookieOptions {
   };
 }
 
+export const SESSION_CONFIG = {
+  saveUninitialized: false,
+  resave: false,
+  cookie: getSessionCookieOptions(),
+};
+
+const DEV_SESSIONS_FILE = path.join(os.tmpdir(), 'estudos-dev-sessions.json');
+
+function shouldPersistDevSessions(): boolean {
+  return process.env.NODE_ENV !== 'test' && !process.env.VITEST;
+}
+
 /**
  * Gerenciador de Sessões em Memória com controle de expiração e TTL de 7 dias.
- * Não exige alterações no schema do banco de dados e fornece lookup O(1).
+ * Em ambiente de desenvolvimento, sincroniza em arquivo temporário para preservar a sessão em reloads do tsx watch.
  */
 export class SessionService {
   private sessions = new Map<string, SessionData>();
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
+    this.loadFromDisk();
+
     // Limpeza periódica de sessões expiradas a cada 1 hora
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredSessions();
@@ -40,6 +58,48 @@ export class SessionService {
     // Desassocia o timer do loop de eventos para não prender o processo em testes
     if (this.cleanupInterval && typeof this.cleanupInterval.unref === 'function') {
       this.cleanupInterval.unref();
+    }
+  }
+
+  private loadFromDisk(): void {
+    if (!shouldPersistDevSessions()) return;
+    try {
+      if (!fs.existsSync(DEV_SESSIONS_FILE)) return;
+      const raw = fs.readFileSync(DEV_SESSIONS_FILE, 'utf8');
+      const parsed = JSON.parse(raw) as Record<
+        string,
+        { userId: string; createdAt: string; expiresAt: string }
+      >;
+      const now = Date.now();
+      for (const [sid, data] of Object.entries(parsed)) {
+        const expiresAt = new Date(data.expiresAt);
+        if (expiresAt.getTime() > now) {
+          this.sessions.set(sid, {
+            userId: data.userId,
+            createdAt: new Date(data.createdAt),
+            expiresAt,
+          });
+        }
+      }
+    } catch {
+      // Ignora falhas de leitura de cache de sessão dev
+    }
+  }
+
+  private saveToDisk(): void {
+    if (!shouldPersistDevSessions()) return;
+    try {
+      const obj: Record<string, { userId: string; createdAt: string; expiresAt: string }> = {};
+      for (const [sid, data] of this.sessions.entries()) {
+        obj[sid] = {
+          userId: data.userId,
+          createdAt: data.createdAt.toISOString(),
+          expiresAt: data.expiresAt.toISOString(),
+        };
+      }
+      fs.writeFileSync(DEV_SESSIONS_FILE, JSON.stringify(obj), 'utf8');
+    } catch {
+      // Ignora falhas de escrita de cache de sessão dev
     }
   }
 
@@ -56,6 +116,7 @@ export class SessionService {
       createdAt: now,
       expiresAt,
     });
+    this.saveToDisk();
 
     return sessionId;
   }
@@ -68,13 +129,18 @@ export class SessionService {
       return null;
     }
 
-    const session = this.sessions.get(sessionId);
+    let session = this.sessions.get(sessionId);
+    if (!session && shouldPersistDevSessions()) {
+      this.loadFromDisk();
+      session = this.sessions.get(sessionId);
+    }
     if (!session) {
       return null;
     }
 
     if (session.expiresAt.getTime() <= Date.now()) {
       this.sessions.delete(sessionId);
+      this.saveToDisk();
       return null;
     }
 
@@ -87,6 +153,7 @@ export class SessionService {
   public deleteSession(sessionId: string | undefined): void {
     if (sessionId) {
       this.sessions.delete(sessionId);
+      this.saveToDisk();
     }
   }
 
@@ -99,6 +166,7 @@ export class SessionService {
         this.sessions.delete(sid);
       }
     }
+    this.saveToDisk();
   }
 
   /**
@@ -111,6 +179,7 @@ export class SessionService {
         this.sessions.delete(sid);
       }
     }
+    this.saveToDisk();
   }
 
   /**
@@ -118,6 +187,7 @@ export class SessionService {
    */
   public clearAll(): void {
     this.sessions.clear();
+    this.saveToDisk();
   }
 }
 
