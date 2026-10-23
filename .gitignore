@@ -48,3 +48,6 @@ ehthumbs.db
 
 # Dados do banco de dados local (se persistido fora do volume Docker)
 postgres_data/
+
+.trail/
+graphify-out/
