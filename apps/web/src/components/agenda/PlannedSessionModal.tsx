@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Calendar,
@@ -221,7 +222,7 @@ export function PlannedSessionModal({
     }
   }
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-50 p-4 sm:p-6 overflow-y-auto flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl my-auto bg-white shadow-2xl border border-slate-200 p-6">
         <button
@@ -581,4 +582,10 @@ export function PlannedSessionModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }
