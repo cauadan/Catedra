@@ -371,7 +371,7 @@ export function Statistics() {
                 {formatMinutes(overview.agendaPlannedMinutes)}
               </p>
               <p className="mt-2 text-[11px] text-slate-500">
-                Soma das sessões planejadas (PLANNED ou DONE) na agenda do período.
+                Soma das sessões agendadas para o período.
               </p>
             </div>
 

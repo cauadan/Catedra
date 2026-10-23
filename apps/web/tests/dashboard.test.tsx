@@ -140,7 +140,7 @@ describe('Dashboard Analítico (@estudos/web)', () => {
     expect(html).toContain('Metas de Estudo');
     expect(html).toContain('Desempenho e Estatísticas');
     expect(html).toContain('Observatório Semanal');
-    expect(html.match(/Disponível/g)?.length).toBeGreaterThanOrEqual(6);
+    expect(html).not.toContain('Disponível');
   });
 
   it('renderiza card "O que estudar agora?", comparativo de hoje, metas ativas, progresso por matéria com classificação e módulos da plataforma', () => {

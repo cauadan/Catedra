@@ -229,8 +229,8 @@ export function PlannedSessionModal({
       : 'Remarcar Sessão';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 p-4 sm:p-6 overflow-y-auto flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl my-auto bg-white shadow-2xl border border-slate-200">
         {/* Cabeçalho do Modal */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
           <div className="flex items-center gap-2">
@@ -313,7 +313,7 @@ export function PlannedSessionModal({
           {/* Horário de Início */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Data e Horário de Início ({userTimezone})
+              Data e Horário de Início
             </label>
             {mode === 'edit' ? (
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">

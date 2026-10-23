@@ -11,11 +11,9 @@ import {
   Menu,
   X,
   GraduationCap,
-  Globe,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter, Link } from '../../contexts/RouterContext';
-import { formatTimezoneLabel } from '../../lib/timezone';
 
 interface ShellProps {
   children: ReactNode;
@@ -100,11 +98,6 @@ export function Shell({ children }: ShellProps) {
                   />
                   <span>{item.label}</span>
                 </div>
-                {item.isPhase2 && (
-                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
-                    Fase 2
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -121,14 +114,6 @@ export function Shell({ children }: ShellProps) {
             <p className="truncate text-xs font-semibold text-slate-900">{user?.name || 'Estudante'}</p>
             <p className="truncate text-[11px] text-slate-500">{user?.email}</p>
           </div>
-        </div>
-
-        <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-slate-400">
-          <span className="flex items-center gap-1 truncate" title={user?.timezone}>
-            <Globe className="h-3 w-3 shrink-0" />
-            <span className="truncate">{user?.timezone || 'America/Sao_Paulo'}</span>
-          </span>
-          <span className="shrink-0 font-medium text-slate-500">Segunda-feira</span>
         </div>
 
         <button
@@ -189,9 +174,6 @@ export function Shell({ children }: ShellProps) {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col text-right">
               <span className="text-xs font-semibold text-slate-800">{user?.name}</span>
-              <span className="text-[11px] text-slate-400">
-                {formatTimezoneLabel(user?.timezone || 'America/Sao_Paulo')}
-              </span>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-semibold text-xs border border-blue-200">
               {userInitials}

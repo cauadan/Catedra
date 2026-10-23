@@ -401,7 +401,7 @@ export function Dashboard() {
             {formatMinutes(today?.agendaPlannedMinutes)}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">
-            Blocos PLANNED ou DONE para hoje
+            Total planejado na agenda para hoje.
           </p>
         </div>
 
@@ -653,9 +653,6 @@ export function Dashboard() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition-colors group-hover:bg-blue-600 group-hover:text-white">
                       <Icon className="h-5 w-5" />
                     </div>
-                    <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                      Disponível
-                    </span>
                   </div>
                   <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                     {m.label}

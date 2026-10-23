@@ -18,6 +18,7 @@ import {
   Sparkles,
   BookOpen,
   Info,
+  X,
 } from 'lucide-react';
 import {
   MIN_QUESTIONS,
@@ -120,7 +121,39 @@ export function Observatory() {
     insufficient: [],
   };
   const neglectedSubjects: any[] = obs?.neglectedSubjects ?? [];
-  const insights: any[] = obs?.insightsAndRecommendations ?? [];
+  const rawInsights: any[] = obs?.insightsAndRecommendations ?? [];
+
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = window.localStorage.getItem('estudos:observatory:dismissed');
+        return stored ? JSON.parse(stored) : [];
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return [];
+  });
+
+  const handleDismissItem = (id: string) => {
+    setDismissedIds((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('estudos:observatory:dismissed', JSON.stringify(next));
+        }
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+
+  const insights = useMemo(
+    () => rawInsights.filter((ins: any) => !dismissedIds.includes(ins.id)),
+    [rawInsights, dismissedIds]
+  );
 
   const hasAnyData = Boolean(
     obs?.hasAnyData ||
@@ -145,13 +178,13 @@ export function Observatory() {
     const list = [
       ...(topicClassification.weak || []).map((t: any) => ({ ...t, kind: 'WEAK' })),
       ...(topicClassification.regular || []).map((t: any) => ({ ...t, kind: 'REGULAR' })),
-    ];
+    ].filter((t: any) => !dismissedIds.includes(`rec:${t.topicId}`));
     return list.sort((a, b) => {
       const sa = a.classification?.finalScore ?? 0;
       const sb = b.classification?.finalScore ?? 0;
       return sa - sb;
     });
-  }, [topicClassification]);
+  }, [topicClassification, dismissedIds]);
 
   const windowEndDayMonth = formatDayMonth(
     obs?.classificationWindow?.windowEndLocalDate || referenceDate
@@ -727,7 +760,16 @@ export function Observatory() {
                         )}
                       </div>
 
-                      <div className="mt-3 flex items-center justify-end">
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDismissItem(`rec:${item.topicId}`)}
+                          title="Dispensar recomendação"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          <span>Dispensar</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => navigate('/agenda')}
@@ -843,13 +885,25 @@ export function Observatory() {
                             {insight.message || insight.description}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => navigate(insight.actionPath || '/agenda')}
-                          className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
-                        >
-                          {insight.actionLabel || insight.recommendedActionLabel || 'Agendar'}
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => navigate(insight.actionPath || '/agenda')}
+                            className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                          >
+                            {insight.actionLabel || insight.recommendedActionLabel || 'Agendar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDismissItem(insight.id)}
+                            title="Dispensar alerta"
+                            aria-label="Dispensar alerta"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            <span>Dispensar</span>
+                          </button>
+                        </div>
                       </div>
 
                       {insight.evidence && insight.evidence.length > 0 && (
