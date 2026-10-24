@@ -253,6 +253,10 @@ export function Dashboard() {
         </div>
       )}
       {/* Cabeçalho */}
+      <div className="mb-1 flex items-center gap-3">
+        <img src="/logo.jpg" alt="Cátedra — Gestão & Desempenho" className="h-12 w-12 rounded-xl border border-slate-200 bg-white object-cover shadow-sm" />
+        <span className="text-sm font-bold tracking-tight text-slate-700">Cátedra • Gestão & Desempenho</span>
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">

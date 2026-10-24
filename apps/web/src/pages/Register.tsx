@@ -1,4 +1,4 @@
-﻿import React, { useState, FormEvent, useEffect } from 'react';
+import React, { useState, FormEvent, useEffect } from 'react';
 import { GraduationCap, User, Mail, Lock, Eye, EyeOff, Globe, AlertCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter, Link } from '../contexts/RouterContext';
@@ -104,9 +104,11 @@ export function Register() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 p-4">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/25">
-            <GraduationCap className="h-6 w-6" />
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="Cátedra — Gestão & Desempenho"
+            className="mx-auto mb-3 h-20 w-20 rounded-2xl border border-slate-200 bg-white object-cover shadow-lg shadow-emerald-500/15"
+          />
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Plataforma de Estudos
           </h1>

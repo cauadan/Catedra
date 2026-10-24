@@ -63,7 +63,7 @@ export function Shell({ children }: ShellProps) {
         {/* Logotipo e Identificação */}
         <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-200">
-            <GraduationCap className="h-5 w-5" />
+            <img src="/logo.jpg" alt="Cátedra" className="h-full w-full rounded-xl object-cover" />
           </div>
           <div>
             <h1 className="text-sm font-bold leading-tight text-slate-900">
@@ -166,7 +166,10 @@ export function Shell({ children }: ShellProps) {
             </button>
             <div>
               <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                {currentItem.label}
+              <div className="flex items-center gap-2.5">
+                <img src="/logo.jpg" alt="Cátedra" className="h-8 w-8 rounded-lg border border-slate-200 object-cover shadow-sm" />
+                <span>{currentItem.label}</span>
+              </div>
               </h2>
             </div>
           </div>
