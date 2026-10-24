@@ -133,7 +133,8 @@ export class AuthController {
 
       res.clearCookie(SESSION_COOKIE_NAME, {
         httpOnly: true,
-        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         path: '/',
       });
 

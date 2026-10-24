@@ -16,11 +16,13 @@ export const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias em ms
 /**
  * Retorna as opções padrão para o cookie de sessão httpOnly.
  * Em desenvolvimento (NODE_ENV !== 'production'), secure é estritamente false.
+ * Em produção (web e API em domínios distintos no Render), usa sameSite 'none' + secure
+ * para que o navegador aceite e reenvie o cookie em requisições cross-site.
  */
 export function getSessionCookieOptions(): CookieOptions {
   return {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
     secure: process.env.NODE_ENV === 'production',
     maxAge: SESSION_DURATION_MS,

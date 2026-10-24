@@ -16,6 +16,7 @@ import { observatoryRouter } from './routes/observatory.routes.js';
  * Configura middlewares globais, rotas de base e tratamento centralizado de erros em português.
  */
 export const app = express();
+app.set('trust proxy', 1);
 
 // Middlewares globais
 app.use(express.json());
