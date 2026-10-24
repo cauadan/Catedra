@@ -28,7 +28,7 @@ function handleGlobalUnauthorized(url: string): void {
   if (typeof window === 'undefined') return;
 
   // Ignora falhas de credenciais nas próprias rotas públicas de login/cadastro
-  if (url.includes('/api/auth/login') || url.includes('/api/auth/register')) {
+  if (url.includes('/auth/login') || url.includes('/auth/register')) {
     return;
   }
 
@@ -52,16 +52,40 @@ function handleGlobalUnauthorized(url: string): void {
 }
 
 /**
- * Cliente HTTP base para comunicação com o backend (apps/api).
- * Garante prefixo /api, envio e recepção de cookies httpOnly via credentials: 'include'
- * e interceptação global de status 401 Unauthorized.
+ * Monta a URL completa tratando se a VITE_API_URL termina com ou sem /api
  */
-export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+function resolveUrl(endpoint: string): string {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url =
-    cleanEndpoint.startsWith('/api/') || cleanEndpoint === '/api'
+  const baseUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+
+  if (!baseUrl) {
+    return cleanEndpoint.startsWith('/api/') || cleanEndpoint === '/api'
       ? cleanEndpoint
       : `/api${cleanEndpoint}`;
+  }
+
+  if (baseUrl.endsWith('/api')) {
+    const route = cleanEndpoint.startsWith('/api/')
+      ? cleanEndpoint.slice(4)
+      : cleanEndpoint === '/api'
+      ? ''
+      : cleanEndpoint;
+    return `${baseUrl}${route.startsWith('/') ? route : `/${route}`}`;
+  }
+
+  const route = cleanEndpoint.startsWith('/api/') || cleanEndpoint === '/api'
+    ? cleanEndpoint
+    : `/api${cleanEndpoint}`;
+
+  return `${baseUrl}${route}`;
+}
+
+/**
+ * Cliente HTTP base para comunicação com o backend (apps/api).
+ * Envia credenciais httpOnly e intercepta 401 Unauthorized.
+ */
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = resolveUrl(endpoint);
 
   const headers = new Headers(options.headers || {});
   if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
