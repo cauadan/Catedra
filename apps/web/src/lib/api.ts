@@ -56,7 +56,7 @@ function handleGlobalUnauthorized(url: string): void {
  */
 function resolveUrl(endpoint: string): string {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const baseUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+  const baseUrl = ((import.meta as any).env?.VITE_API_URL || '').trim().replace(/\/+$/, '');
 
   if (!baseUrl) {
     return cleanEndpoint.startsWith('/api/') || cleanEndpoint === '/api'
