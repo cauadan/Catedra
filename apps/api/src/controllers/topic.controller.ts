@@ -62,6 +62,23 @@ export class TopicController {
     }
   }
 
+  static async toggleCompleted(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const topicId = req.params.id as string;
+      const explicitCompleted =
+        typeof req.body?.completed === 'boolean' ? req.body.completed : undefined;
+
+      const topic = await TopicService.toggleCompleted(userId, topicId, explicitCompleted);
+      return res.json(topic);
+    } catch (error: any) {
+      if (error.message === 'NOT_FOUND') {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Assunto não encontrado.' } });
+      }
+      next(error);
+    }
+  }
+
   static async deleteTopic(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.id;

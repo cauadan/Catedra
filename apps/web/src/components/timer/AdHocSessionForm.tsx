@@ -264,7 +264,7 @@ export function AdHocSessionForm({
               {
                 id: 'BALANCED' as const,
                 title: 'Equilibrado',
-                desc: 'Revisão + Novo + Prática',
+                desc: 'Revisão + Teoria Nova + Prática',
               },
               {
                 id: 'PRACTICE_FOCUS' as const,
@@ -273,7 +273,7 @@ export function AdHocSessionForm({
               },
               {
                 id: 'NEW_ONLY' as const,
-                title: 'Conteúdo Novo',
+                title: 'Teoria Nova',
                 desc: '100% Teoria e Conteúdo',
               },
             ].map((p) => (

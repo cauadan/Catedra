@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar as CalendarIcon,
@@ -16,14 +16,48 @@ import { utcToLocalDate, addDaysToLocalDate } from '@estudos/domain';
 import { AgendaHeader } from '../components/agenda/AgendaHeader';
 import { AgendaSummaryCards } from '../components/agenda/AgendaSummaryCards';
 import { PlannedSessionCard } from '../components/agenda/PlannedSessionCard';
-import { PlannedSessionModal } from '../components/agenda/PlannedSessionModal';
+import {
+  PlannedSessionModal,
+  type PlannedSessionPrefill,
+} from '../components/agenda/PlannedSessionModal';
 
 const DIAS_CURTOS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+function extractPrefillFromRouter(search: string, state: any): PlannedSessionPrefill | null {
+  if (state && (state.action === 'new' || state.subjectId || state.topicId || state.stage)) {
+    return {
+      subjectId: state.subjectId || undefined,
+      topicId: state.topicId || undefined,
+      stage: (state.stage as any) || 'PRACTICE',
+      leaveScheduleEmpty: true,
+    };
+  }
+
+  const rawSearch = search || (typeof window !== 'undefined' ? window.location.search : '');
+  if (!rawSearch) return null;
+
+  const params = new URLSearchParams(rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch);
+  const action = params.get('action');
+  const subjectId = params.get('subjectId') || params.get('subject_id');
+  const topicId = params.get('topicId') || params.get('topic_id');
+  const stage = params.get('stage');
+
+  if (action === 'new' || subjectId || topicId || stage) {
+    return {
+      subjectId: subjectId || undefined,
+      topicId: topicId || undefined,
+      stage: (stage as any) || 'PRACTICE',
+      leaveScheduleEmpty: true,
+    };
+  }
+
+  return null;
+}
 
 export function Agenda() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { navigate } = useRouter();
+  const { navigate, search, state } = useRouter();
   const timezone = user?.timezone || 'America/Sao_Paulo';
 
   // "Hoje" no fuso do usuário
@@ -34,16 +68,42 @@ export function Agenda() {
   const [view, setView] = useState<'day' | 'week'>('week');
   const [currentDate, setCurrentDate] = useState<string>(todayLocalDate);
 
+  const initialPrefill = useMemo(() => extractPrefillFromRouter(search, state), []);
+
   // Modal State
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     mode: 'create' | 'edit' | 'reschedule';
     session?: any | null;
-  }>({
-    isOpen: false,
-    mode: 'create',
-    session: null,
-  });
+    prefill?: PlannedSessionPrefill | null;
+  }>(() =>
+    initialPrefill
+      ? {
+          isOpen: true,
+          mode: 'create',
+          session: null,
+          prefill: initialPrefill,
+        }
+      : {
+          isOpen: false,
+          mode: 'create',
+          session: null,
+          prefill: null,
+        }
+  );
+
+  // Detecta se vieram dados de pré-agendamento via search params ou navigation state
+  useEffect(() => {
+    const detected = extractPrefillFromRouter(search, state);
+    if (detected) {
+      setModalState({
+        isOpen: true,
+        mode: 'create',
+        session: null,
+        prefill: detected,
+      });
+    }
+  }, [search, state]);
 
   // Modal de confirmação para ações destrutivas (Pular / Excluir)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -182,10 +242,10 @@ export function Agenda() {
       } else if (err.code === 'PLANNED_SESSION_NOT_AVAILABLE') {
         setErrorBanner(err.message);
         queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['goals'] });
-      queryClient.invalidateQueries({ queryKey: ['statistics'] });
-      queryClient.invalidateQueries({ queryKey: ['observatory'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        queryClient.invalidateQueries({ queryKey: ['goals'] });
+        queryClient.invalidateQueries({ queryKey: ['statistics'] });
+        queryClient.invalidateQueries({ queryKey: ['observatory'] });
       } else {
         setErrorBanner(err.message);
       }
@@ -235,11 +295,11 @@ export function Agenda() {
 
   // Ações rápidas dos cards
   const handleEdit = (session: any) => {
-    setModalState({ isOpen: true, mode: 'edit', session });
+    setModalState({ isOpen: true, mode: 'edit', session, prefill: null });
   };
 
   const handleReschedule = (session: any) => {
-    setModalState({ isOpen: true, mode: 'reschedule', session });
+    setModalState({ isOpen: true, mode: 'reschedule', session, prefill: null });
   };
 
   const handleSkip = (session: any) => {
@@ -282,6 +342,13 @@ export function Agenda() {
     return map;
   }, [sessions]);
 
+  const handleCloseModal = () => {
+    setModalState({ isOpen: false, mode: 'create', session: null, prefill: null });
+    if (search || state) {
+      navigate('/agenda', { replace: true, state: null });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho da Agenda */}
@@ -292,7 +359,7 @@ export function Agenda() {
         onViewChange={(newView) => setView(newView)}
         onNavigate={handleNavigate}
         onNewSession={() =>
-          setModalState({ isOpen: true, mode: 'create', session: null })
+          setModalState({ isOpen: true, mode: 'create', session: null, prefill: null })
         }
       />
 
@@ -356,7 +423,7 @@ export function Agenda() {
               <button
                 type="button"
                 onClick={() =>
-                  setModalState({ isOpen: true, mode: 'create', session: null })
+                  setModalState({ isOpen: true, mode: 'create', session: null, prefill: null })
                 }
                 className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition"
               >
@@ -453,13 +520,12 @@ export function Agenda() {
         isOpen={modalState.isOpen}
         mode={modalState.mode}
         initialSession={modalState.session}
+        prefill={modalState.prefill}
         subjects={subjects}
         topics={topics}
         userTimezone={timezone}
         defaultDate={currentDate}
-        onClose={() =>
-          setModalState({ isOpen: false, mode: 'create', session: null })
-        }
+        onClose={handleCloseModal}
         onSubmit={handleModalSubmit}
       />
 

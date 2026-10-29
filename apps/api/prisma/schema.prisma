@@ -135,14 +135,16 @@ model Subject {
 
 /// Assunto (Topic): hierarquia de árvore com profundidade livre via parent_id
 model Topic {
-  id         String   @id @default(uuid())
-  user_id    String
-  subject_id String
-  parent_id  String?
-  name       String
-  archived   Boolean  @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id           String    @id @default(uuid())
+  user_id      String
+  subject_id   String
+  parent_id    String?
+  name         String
+  archived     Boolean   @default(false)
+  completed    Boolean   @default(false)
+  completed_at DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
 
   user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
   subject          Subject          @relation(fields: [subject_id], references: [id], onDelete: Cascade)

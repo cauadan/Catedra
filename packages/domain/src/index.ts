@@ -89,6 +89,7 @@ export const subjectUpdateSchema = z
       .optional(),
     color: hexColorSchema.optional(),
     archived: z.boolean({ invalid_type_error: 'O campo "archived" deve ser verdadeiro ou falso.' }).optional(),
+    completed: z.boolean({ invalid_type_error: 'O campo "completed" deve ser verdadeiro ou falso.' }).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Informe ao menos um campo para atualizar.',
@@ -141,6 +142,7 @@ export const topicUpdateSchema = z
     subject_id: z.string().min(1, { message: 'O ID da matéria não pode ser vazio.' }).optional(),
     parent_id: z.string().min(1, { message: 'O ID do assunto pai é inválido.' }).nullable().optional(),
     archived: z.boolean({ invalid_type_error: 'O campo "archived" deve ser verdadeiro ou falso.' }).optional(),
+    completed: z.boolean({ invalid_type_error: 'O campo "completed" deve ser verdadeiro ou falso.' }).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Informe ao menos um campo para atualizar.',
@@ -149,7 +151,7 @@ export const topicUpdateSchema = z
 export type TopicUpdateInput = z.infer<typeof topicUpdateSchema>;
 
 /** Assunto como retornado pela API. */
-export interface TopicDTO {
+export interface TopicDTO { completed?: boolean; completed_at?: string | null;
   id: string;
   user_id: string;
   subject_id: string;

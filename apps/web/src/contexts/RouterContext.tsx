@@ -9,28 +9,50 @@ import React, {
 
 export interface RouterContextType {
   path: string;
-  navigate: (to: string, options?: { replace?: boolean }) => void;
+  search: string;
+  state: any;
+  navigate: (to: string, options?: { replace?: boolean; state?: any }) => void;
 }
 
 const RouterContext = createContext<RouterContextType | null>(null);
 
 /**
- * Normaliza o caminho atual considerando suporte transparente para pathname e hash.
+ * Normaliza o caminho atual considerando suporte transparente para pathname e hash,
+ * removendo a query string de `path` para preservar a correspondência exata das rotas.
  */
 function getCurrentPath(): string {
   if (typeof window === 'undefined') return '/';
   if (window.location.hash.startsWith('#/')) {
-    return window.location.hash.slice(1);
+    const rawHash = window.location.hash.slice(1);
+    return rawHash.split('?')[0] || '/';
   }
   return window.location.pathname || '/';
 }
 
+function getCurrentSearch(): string {
+  if (typeof window === 'undefined') return '';
+  if (window.location.hash.startsWith('#/')) {
+    const qIdx = window.location.hash.indexOf('?');
+    return qIdx !== -1 ? window.location.hash.slice(qIdx) : window.location.search || '';
+  }
+  return window.location.search || '';
+}
+
+function getCurrentState(): any {
+  if (typeof window === 'undefined') return null;
+  return window.history.state ?? null;
+}
+
 export function RouterProvider({ children }: { children: ReactNode }) {
   const [path, setPath] = useState<string>(getCurrentPath);
+  const [search, setSearch] = useState<string>(getCurrentSearch);
+  const [state, setState] = useState<any>(getCurrentState);
 
   useEffect(() => {
     const handleLocationChange = () => {
       setPath(getCurrentPath());
+      setSearch(getCurrentSearch());
+      setState(getCurrentState());
     };
 
     window.addEventListener('popstate', handleLocationChange);
@@ -42,21 +64,28 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const navigate = useCallback((to: string, options?: { replace?: boolean }) => {
+  const navigate = useCallback((to: string, options?: { replace?: boolean; state?: any }) => {
     const target = to.startsWith('/') ? to : `/${to}`;
+    const nextState = options?.state ?? null;
 
     if (options?.replace) {
-      window.history.replaceState(null, '', target);
+      window.history.replaceState(nextState, '', target);
     } else {
-      window.history.pushState(null, '', target);
+      window.history.pushState(nextState, '', target);
     }
 
-    setPath(target);
+    const qIdx = target.indexOf('?');
+    const cleanPath = qIdx !== -1 ? target.slice(0, qIdx) || '/' : target;
+    const cleanSearch = qIdx !== -1 ? target.slice(qIdx) : '';
+
+    setPath(cleanPath);
+    setSearch(cleanSearch);
+    setState(nextState);
     window.scrollTo(0, 0);
   }, []);
 
   return (
-    <RouterContext.Provider value={{ path, navigate }}>
+    <RouterContext.Provider value={{ path, search, state, navigate }}>
       {children}
     </RouterContext.Provider>
   );

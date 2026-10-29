@@ -8,12 +8,12 @@ interface AgendaSummaryCardsProps {
 }
 
 function formatMinutes(minutes: number): string {
-  if (minutes < 60) {
-    return `${minutes} min`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remaining = minutes % 60;
-  return remaining > 0 ? `${hours}h ${remaining}m` : `${hours}h`;
+  if (minutes <= 0) return '0 min';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
 }
 
 export function AgendaSummaryCards({ summary, loading = false }: AgendaSummaryCardsProps) {
@@ -73,20 +73,23 @@ export function AgendaSummaryCards({ summary, loading = false }: AgendaSummaryCa
       </div>
 
       {/* Card 3: Distribuição por Etapa */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between">
-        <div className="w-full mr-2">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between gap-2">
+        <div className="w-full min-w-0">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Distribuição por Etapa
           </span>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">
-              Rev: {reviewMin}m
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-200">
+              <span>Revisão:</span>
+              <strong>{reviewMin}m</strong>
             </span>
-            <span className="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
-              Novo: {newContentMin}m
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
+              <span>Teoria Nova:</span>
+              <strong>{newContentMin}m</strong>
             </span>
-            <span className="inline-flex items-center rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 border border-violet-200">
-              Prát: {practiceMin}m
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 border border-violet-200">
+              <span>Prática:</span>
+              <strong>{practiceMin}m</strong>
             </span>
           </div>
         </div>

@@ -195,7 +195,7 @@ export function PlannedSessionCard({
 
       {/* Pílulas de Etapas (Blocks) */}
       {session.blocks && session.blocks.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 mb-2.5 pt-2 border-t border-slate-100">
+        <div className="flex flex-wrap items-center gap-1.5 mb-2.5 pt-2 border-t border-slate-100">
           {session.blocks.map((block, idx) => {
             const kindColors: Record<string, string> = {
               REVIEW: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -204,20 +204,21 @@ export function PlannedSessionCard({
             };
             const label =
               block.kind === 'REVIEW'
-                ? 'Rev'
+                ? 'Revisão:'
                 : block.kind === 'NEW_CONTENT'
-                ? 'Novo'
-                : 'Prát';
+                ? 'Teoria Nova:'
+                : 'Prática:';
 
             return (
               <span
                 key={block.id || idx}
-                className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${
+                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-[10px] font-medium ${
                   kindColors[block.kind] || 'bg-slate-50 text-slate-700'
                 }`}
                 title={`${BLOCK_KIND_LABELS[block.kind]}: ${block.planned_minutes} min`}
               >
-                {label} {block.planned_minutes}m
+                <span>{label}</span>
+                <strong>{block.planned_minutes}m</strong>
               </span>
             );
           })}

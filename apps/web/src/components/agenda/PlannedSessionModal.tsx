@@ -23,10 +23,18 @@ import {
   type PlannedActivityType,
 } from '@estudos/domain';
 
+export interface PlannedSessionPrefill {
+  subjectId?: string;
+  topicId?: string;
+  stage?: 'PRACTICE' | 'REVIEW' | 'NEW_CONTENT';
+  leaveScheduleEmpty?: boolean;
+}
+
 export interface PlannedSessionModalProps {
   isOpen: boolean;
   mode: 'create' | 'edit' | 'reschedule';
   initialSession?: any | null;
+  prefill?: PlannedSessionPrefill | null;
   subjects: Array<{ id: string; name: string; color: string; archived: boolean }>;
   topics: Array<{ id: string; subject_id: string; name: string; archived: boolean }>;
   userTimezone: string;
@@ -39,6 +47,7 @@ export function PlannedSessionModal({
   isOpen,
   mode,
   initialSession,
+  prefill,
   subjects,
   topics,
   userTimezone,
@@ -48,44 +57,65 @@ export function PlannedSessionModal({
 }: PlannedSessionModalProps) {
   if (!isOpen) return null;
 
-  // Filtrar apenas matérias e assuntos ativos (permitindo os atuais caso seja edição)
+  // Filtrar apenas matérias e assuntos ativos (permitindo os atuais caso seja edição ou prefill)
   const activeSubjects = useMemo(() => {
     return subjects.filter(
-      (s) => !s.archived || (initialSession && s.id === initialSession.subject_id)
+      (s) =>
+        !s.archived ||
+        (initialSession && s.id === initialSession.subject_id) ||
+        (prefill?.subjectId && s.id === prefill.subjectId)
     );
-  }, [subjects, initialSession]);
+  }, [subjects, initialSession, prefill]);
 
   const [subjectId, setSubjectId] = useState(
-    initialSession?.subject_id || (activeSubjects[0]?.id ?? '')
+    initialSession?.subject_id || prefill?.subjectId || (activeSubjects[0]?.id ?? '')
   );
+
+  // Sincronizar subjectId caso as matérias carreguem de forma assíncrona ou o prefill mude
+  useEffect(() => {
+    if (prefill?.subjectId) {
+      setSubjectId(prefill.subjectId);
+    } else if (initialSession?.subject_id) {
+      setSubjectId(initialSession.subject_id);
+    } else if (!subjectId && activeSubjects.length > 0) {
+      setSubjectId(activeSubjects[0].id);
+    }
+  }, [prefill?.subjectId, initialSession?.subject_id, activeSubjects]);
 
   const availableTopics = useMemo(() => {
     return topics.filter(
       (t) =>
         t.subject_id === subjectId &&
-        (!t.archived || (initialSession && t.id === initialSession.topic_id))
+        (!t.archived ||
+          (initialSession && t.id === initialSession.topic_id) ||
+          (prefill?.topicId && t.id === prefill.topicId))
     );
-  }, [topics, subjectId, initialSession]);
+  }, [topics, subjectId, initialSession, prefill]);
 
   const [topicId, setTopicId] = useState(
-    initialSession?.topic_id || (availableTopics[0]?.id ?? '')
+    initialSession?.topic_id || prefill?.topicId || (availableTopics[0]?.id ?? '')
   );
 
-  // Garantir que topicId acompanhe a troca de subjectId
+  // Garantir que topicId acompanhe a troca de subjectId ou prefill
   useEffect(() => {
-    if (!availableTopics.some((t) => t.id === topicId)) {
+    if (prefill?.topicId && availableTopics.some((t) => t.id === prefill.topicId)) {
+      setTopicId(prefill.topicId);
+    } else if (!availableTopics.some((t) => t.id === topicId)) {
       setTopicId(availableTopics[0]?.id ?? '');
     }
-  }, [subjectId, availableTopics]);
+  }, [subjectId, availableTopics, prefill?.topicId]);
 
-  // Horário local YYYY-MM-DDTHH:mm
+  // Horário local YYYY-MM-DDTHH:mm (aberto para preenchimento manual quando vem de prefill do Observatório)
   const defaultLocalTime = useMemo(() => {
     if (initialSession?.local_date && initialSession?.local_time) {
       return `${initialSession.local_date}T${initialSession.local_time}`;
     }
+    if (prefill?.leaveScheduleEmpty) {
+      return '';
+    }
     const date = defaultDate || new Date().toISOString().slice(0, 10);
     return `${date}T09:00`;
-  }, [initialSession, defaultDate]);
+  }, [initialSession, defaultDate, prefill?.leaveScheduleEmpty]);
 
   const [scheduledStartLocal, setScheduledStartLocal] = useState(defaultLocalTime);
   const [plannedMinutes, setPlannedMinutes] = useState<number>(
@@ -95,7 +125,12 @@ export function PlannedSessionModal({
     initialSession?.priority || 'MEDIUM'
   );
   const [activityType, setActivityType] = useState<PlannedActivityType>(
-    initialSession?.activity_type || 'THEORY'
+    initialSession?.activity_type ||
+      (prefill?.stage === 'PRACTICE'
+        ? 'PRACTICE'
+        : prefill?.stage === 'REVIEW'
+        ? 'REVIEW'
+        : 'THEORY')
   );
   const [notes, setNotes] = useState(initialSession?.notes || '');
 
@@ -122,11 +157,24 @@ export function PlannedSessionModal({
       setReviewMin(rev);
       setNewContentMin(novo);
       setPracticeMin(prat);
+    } else if (prefill?.stage === 'PRACTICE') {
+      setSelectedPreset('PRACTICE_FOCUS');
+      setActivityType('PRACTICE');
+      setReviewMin(0);
+      setNewContentMin(0);
+      setPracticeMin(plannedMinutes);
+    } else if (prefill?.stage === 'REVIEW') {
+      setSelectedPreset(null);
+      setActivityType('REVIEW');
+      const rev = Math.round(plannedMinutes * 0.5);
+      setReviewMin(rev);
+      setNewContentMin(0);
+      setPracticeMin(plannedMinutes - rev);
     } else {
       // Default: Balanced para 60 min
       applyPreset('BALANCED', plannedMinutes);
     }
-  }, [initialSession]);
+  }, [initialSession, prefill?.stage]);
 
   function applyPreset(preset: BlockPreset, total: number) {
     setSelectedPreset(preset);
@@ -147,7 +195,9 @@ export function PlannedSessionModal({
   function handleDurationChange(mins: number) {
     const val = Math.max(5, Math.min(480, mins));
     setPlannedMinutes(val);
-    if (selectedPreset) {
+    if (prefill?.stage === 'PRACTICE' && reviewMin === 0 && newContentMin === 0) {
+      setPracticeMin(val);
+    } else if (selectedPreset) {
       applyPreset(selectedPreset, val);
     }
   }
@@ -326,6 +376,7 @@ export function PlannedSessionModal({
                 type="datetime-local"
                 value={scheduledStartLocal}
                 onChange={(e) => setScheduledStartLocal(e.target.value)}
+                placeholder="Selecione data e horário"
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 required
               />
@@ -378,44 +429,50 @@ export function PlannedSessionModal({
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Presets de Distribuição de Etapas
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => applyPreset('BALANCED', plannedMinutes)}
-                className={`rounded-xl border p-2 text-left transition ${
+                className={`rounded-xl border p-2.5 text-left transition ${
                   selectedPreset === 'BALANCED'
                     ? 'border-emerald-600 bg-emerald-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
                 <div className="text-xs font-bold text-slate-900">Equilibrado</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">25% Rev • 50% Novo • 25% Prát</div>
+                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  Revisão: 25% • Teoria Nova: 50% • Prática: 25%
+                </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyPreset('PRACTICE_FOCUS', plannedMinutes)}
-                className={`rounded-xl border p-2 text-left transition ${
+                className={`rounded-xl border p-2.5 text-left transition ${
                   selectedPreset === 'PRACTICE_FOCUS'
                     ? 'border-emerald-600 bg-emerald-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
                 <div className="text-xs font-bold text-slate-900">Foco em Prática</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">20% Rev • 80% Prática</div>
+                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  Revisão: 20% • Prática: 80%
+                </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyPreset('NEW_ONLY', plannedMinutes)}
-                className={`rounded-xl border p-2 text-left transition ${
+                className={`rounded-xl border p-2.5 text-left transition ${
                   selectedPreset === 'NEW_ONLY'
                     ? 'border-emerald-600 bg-emerald-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-900">Só Conteúdo Novo</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">100% Teoria/Novo</div>
+                <div className="text-xs font-bold text-slate-900">Só Teoria Nova</div>
+                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  Teoria Nova: 100%
+                </div>
               </button>
             </div>
           </div>
@@ -441,7 +498,7 @@ export function PlannedSessionModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Conteúdo novo (min)
+                Teoria Nova (min)
               </label>
               <input
                 type="number"

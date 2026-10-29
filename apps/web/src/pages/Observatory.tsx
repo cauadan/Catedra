@@ -80,6 +80,14 @@ function formatDelta(val: number | null | undefined, suffix = ''): string {
 export function Observatory() {
   const { user } = useAuth();
   const { navigate } = useRouter();
+
+  /** Abre a Agenda já com o formulário de Novo Planejamento pré-preenchido (sem horário forçado). */
+  const handleSchedule = (item: any, stage: 'PRACTICE' | 'REVIEW' = 'PRACTICE') => {
+    const params = new URLSearchParams({ action: 'new', stage });
+    if (item?.subjectId) params.set('subjectId', item.subjectId);
+    if (item?.topicId) params.set('topicId', item.topicId);
+    navigate(`/agenda?${params.toString()}`);
+  };
   const timezone = user?.timezone || 'America/Sao_Paulo';
   const todayIso = useMemo(() => getTodayIso(timezone), [timezone]);
 
@@ -542,7 +550,7 @@ export function Observatory() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => navigate('/agenda')}
+                          onClick={() => handleSchedule(item, 'REVIEW')}
                           className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
                         >
                           <span>Agendar Revisão</span>
@@ -596,7 +604,7 @@ export function Observatory() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => navigate('/agenda')}
+                          onClick={() => handleSchedule(item, 'PRACTICE')}
                           className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700"
                         >
                           <span>Agendar Prática</span>
@@ -641,9 +649,9 @@ export function Observatory() {
                             </span>
                           </div>
                         </div>
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                        <button type="button" title="Agendar na agenda" onClick={() => handleSchedule(item, 'PRACTICE')} className="inline-flex shrink-0 items-center whitespace-nowrap cursor-pointer transition hover:bg-emerald-200 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800">
                           {item.classification?.recommendedActionLabel || 'Manter manutenção'}
-                        </span>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -686,7 +694,7 @@ export function Observatory() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => navigate('/agenda')}
+                          onClick={() => handleSchedule(item, 'PRACTICE')}
                           className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-900"
                         >
                           <span>Resolver Questões</span>
@@ -735,8 +743,8 @@ export function Observatory() {
                             />
                             <h3 className="text-xs font-bold text-slate-900">{item.topicName}</h3>
                           </div>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                          <button type="button" title="Agendar na agenda" onClick={() => handleSchedule(item, isWeak ? 'REVIEW' : 'PRACTICE')}
+                            className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 cursor-pointer transition hover:shadow-sm text-[10px] font-semibold border ${
                               isWeak
                                 ? 'bg-rose-50 text-rose-800 border-rose-200'
                                 : 'bg-amber-50 text-amber-800 border-amber-200'
@@ -744,7 +752,7 @@ export function Observatory() {
                           >
                             {item.classification?.recommendedActionLabel ||
                               (isWeak ? 'Revisão + prática' : 'Mais prática')}
-                          </span>
+                          </button>
                         </div>
                         <p className="mt-1 text-[11px] text-slate-500">
                           Matéria: {item.subjectName} • Nota consolidada:{' '}
@@ -772,7 +780,7 @@ export function Observatory() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => navigate('/agenda')}
+                          onClick={() => handleSchedule(item, isWeak ? 'REVIEW' : 'PRACTICE')}
                           className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm ${
                             isWeak
                               ? 'bg-rose-600 hover:bg-rose-700'
@@ -888,7 +896,7 @@ export function Observatory() {
                         <div className="flex shrink-0 items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => navigate(insight.actionPath || '/agenda')}
+                            onClick={() => insight.topicId || insight.subjectId ? handleSchedule(insight, insight.kind === 'WEAK_TOPIC' ? 'REVIEW' : 'PRACTICE') : navigate(insight.actionPath || '/agenda')}
                             className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
                           >
                             {insight.actionLabel || insight.recommendedActionLabel || 'Agendar'}

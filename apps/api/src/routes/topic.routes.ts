@@ -8,5 +8,6 @@ topicRouter.use(authMiddleware);
 
 topicRouter.get('/', TopicController.listTopics);
 topicRouter.post('/', TopicController.createTopic);
+topicRouter.patch('/:id/toggle-completed', TopicController.toggleCompleted);
 topicRouter.patch('/:id', TopicController.updateTopic);
 topicRouter.delete('/:id', TopicController.deleteTopic);

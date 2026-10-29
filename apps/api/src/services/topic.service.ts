@@ -106,6 +106,10 @@ export class TopicService {
         ...(data.subject_id !== undefined && { subject_id: data.subject_id }),
         ...(data.parent_id !== undefined && { parent_id: data.parent_id }),
         ...(data.archived !== undefined && { archived: data.archived }),
+        ...(data.completed !== undefined && {
+          completed: data.completed,
+          completed_at: data.completed ? new Date() : null,
+        }),
       },
     });
 
@@ -120,6 +124,30 @@ export class TopicService {
         });
       }
     }
+
+    return this.mapToDTO(updated);
+  }
+
+  static async toggleCompleted(
+    userId: string,
+    topicId: string,
+    explicitCompleted?: boolean
+  ): Promise<TopicDTO> {
+    const topic = await prisma.topic.findUnique({ where: { id: topicId } });
+    if (!topic || topic.user_id !== userId) {
+      throw new Error('NOT_FOUND');
+    }
+
+    const nextCompleted =
+      explicitCompleted !== undefined ? explicitCompleted : !Boolean((topic as any).completed);
+
+    const updated = await prisma.topic.update({
+      where: { id: topicId },
+      data: {
+        completed: nextCompleted,
+        completed_at: nextCompleted ? new Date() : null,
+      },
+    });
 
     return this.mapToDTO(updated);
   }
@@ -146,6 +174,8 @@ export class TopicService {
       parent_id: topic.parent_id,
       name: topic.name,
       archived: topic.archived,
+      completed: Boolean(topic.completed),
+      completed_at: topic.completed_at ? topic.completed_at.toISOString() : null,
       created_at: topic.created_at.toISOString(),
       updated_at: topic.updated_at.toISOString(),
     };
