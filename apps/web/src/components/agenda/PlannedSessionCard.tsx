@@ -9,6 +9,7 @@ import {
   Tag,
   BookOpen,
   Play,
+  FileText,
 } from 'lucide-react';
 import {
   PRIORITY_LABELS,
@@ -35,6 +36,7 @@ export interface PlannedSessionCardProps {
     local_time: string;
     actual_effective_seconds?: number | null;
     actual_total_seconds?: number | null;
+    study_session_id?: string | null;
     subject: {
       id: string;
       name: string;
@@ -54,6 +56,7 @@ export interface PlannedSessionCardProps {
     }>;
   };
   isOverlapping?: boolean;
+  onViewDetails?: (session: any) => void;
   onStartStudy?: (session: any) => void;
   onEdit?: (session: any) => void;
   onReschedule?: (session: any) => void;
@@ -64,6 +67,7 @@ export interface PlannedSessionCardProps {
 export function PlannedSessionCard({
   session,
   isOverlapping = false,
+  onViewDetails,
   onStartStudy,
   onEdit,
   onReschedule,
@@ -71,6 +75,7 @@ export function PlannedSessionCard({
   onDelete,
 }: PlannedSessionCardProps) {
   const isPlanned = session.status === 'PLANNED';
+  const isDone = session.status === 'DONE';
   const isArchived = session.subject.archived || session.topic.archived;
   const isRescheduled = Boolean(session.rescheduled_from_id);
 
@@ -95,11 +100,18 @@ export function PlannedSessionCard({
     RESCHEDULED: 'bg-purple-50 text-purple-700 border-purple-200',
   };
 
+  const handleCardClick = () => {
+    if (isDone && onViewDetails) {
+      onViewDetails(session);
+    }
+  };
+
   return (
     <div
+      onClick={handleCardClick}
       className={`relative rounded-xl border bg-white p-3.5 shadow-sm transition hover:shadow-md min-w-0 overflow-hidden ${
         isOverlapping ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-200'
-      }`}
+      } ${isDone && onViewDetails ? 'cursor-pointer hover:border-emerald-300' : ''}`}
       style={{
         borderLeftWidth: '5px',
         borderLeftColor: session.subject.color || '#3B82F6',
@@ -240,7 +252,10 @@ export function PlannedSessionCard({
               {onStartStudy && (
                 <button
                   type="button"
-                  onClick={() => onStartStudy(session)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStartStudy(session);
+                  }}
                   className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition"
                   title="Iniciar Sessão de Estudo"
                 >
@@ -253,7 +268,10 @@ export function PlannedSessionCard({
               {onEdit && (
                 <button
                   type="button"
-                  onClick={() => onEdit(session)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(session);
+                  }}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
                   title="Editar sessão"
                 >
@@ -264,7 +282,10 @@ export function PlannedSessionCard({
               {onReschedule && (
                 <button
                   type="button"
-                  onClick={() => onReschedule(session)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReschedule(session);
+                  }}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-purple-600 hover:bg-purple-50 transition"
                   title="Remarcar para outro horário"
                 >
@@ -275,7 +296,10 @@ export function PlannedSessionCard({
               {onSkip && (
                 <button
                   type="button"
-                  onClick={() => onSkip(session)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSkip(session);
+                  }}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-amber-600 hover:bg-amber-50 transition"
                   title="Pular sessão"
                 >
@@ -286,7 +310,10 @@ export function PlannedSessionCard({
               {onDelete && (
                 <button
                   type="button"
-                  onClick={() => onDelete(session)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(session);
+                  }}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition"
                   title="Excluir sessão planejada"
                 >
@@ -297,11 +324,29 @@ export function PlannedSessionCard({
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-end w-full">
+          <div className="flex items-center justify-between w-full gap-2">
+            {isDone && onViewDetails ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewDetails(session);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition"
+                title="Ver detalhes da sessão e anotações"
+              >
+                <FileText className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span>Ver Detalhes</span>
+              </button>
+            ) : <span />}
+
             {onDelete && (
               <button
                 type="button"
-                onClick={() => onDelete(session)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(session);
+                }}
                 className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 transition ml-auto"
                 title="Excluir sessão da agenda"
               >

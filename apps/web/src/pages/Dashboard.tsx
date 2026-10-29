@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Sparkles,
   BookOpen,
+  FileText,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { MIN_QUESTIONS } from '@estudos/domain';
@@ -20,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from '../contexts/RouterContext';
 import { apiFetch } from '../lib/api';
 import { renderGoalStatusBadge, formatGoalMetricLabel } from '../components/goals/GoalStatusBadge';
+import { SessionDetailsModal } from '../components/session/SessionDetailsModal';
 
 function getTodayIso(timezone: string): string {
   try {
@@ -147,6 +149,7 @@ export function Dashboard() {
   const { user } = useAuth();
   const { navigate } = useRouter();
   const queryClient = useQueryClient();
+  const [selectedSessionForDetails, setSelectedSessionForDetails] = React.useState<string | null>(null);
   const timezone = user?.timezone || 'America/Sao_Paulo';
   const todayIso = getTodayIso(timezone);
 
@@ -206,6 +209,7 @@ export function Dashboard() {
   const rolling30Days = dash.rolling30Days;
   const subjectProgress: any[] = dash.subjectProgress ?? [];
   const classificationSummary = dash.classificationSummary ?? null;
+  const recentSessions: any[] = dash.recentSessions ?? [];
 
   return (
     <div className="space-y-6">
@@ -570,6 +574,114 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Histórico Recente de Estudos */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">
+              Histórico Recente de Estudos
+            </h3>
+            <p className="text-xs text-slate-500">
+              Clique em qualquer sessão para visualizar o resumo detalhado, métricas de foco e gerenciar anotações.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/agenda')}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+          >
+            <span>Ver na Agenda</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {recentSessions.length === 0 ? (
+          <p className="mt-4 text-xs text-slate-500 italic">
+            Nenhuma sessão de estudo concluída recentemente. Suas sessões finalizadas aparecerão aqui!
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {recentSessions.map((s) => {
+              const totalSec = s.metrics?.effectiveSeconds || 0;
+              const durationStr = totalSec > 0 ? formatMinutes(totalSec / 60) : '—';
+              const questions = (s.practice_records || []).reduce(
+                (acc: number, r: any) => acc + (r.questions || 0),
+                0
+              );
+              const hasNotes = Boolean(s.evaluation?.notes?.trim());
+
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => setSelectedSessionForDetails(s.id)}
+                  className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-emerald-500 hover:shadow-md transition cursor-pointer"
+                  style={{
+                    borderLeftWidth: '4px',
+                    borderLeftColor: s.topic?.subject?.color || '#10B981',
+                  }}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: s.topic?.subject?.color || '#10B981' }}
+                        />
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider truncate">
+                          {s.topic?.subject?.name || 'Matéria'}
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 shrink-0">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Concluída
+                      </span>
+                    </div>
+
+                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition line-clamp-1">
+                      {s.topic?.name || 'Assunto'}
+                    </h4>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="h-3 w-3 text-slate-400" />
+                        {s.started_at ? formatDateBr(s.started_at.slice(0, 10)) : ''}
+                      </span>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-slate-400" />
+                        {durationStr}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-600">
+                    <div>
+                      {questions > 0 ? (
+                        <span>
+                          Questões: <strong className="text-slate-800">{questions}</strong>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">Sem questões</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 text-emerald-700 font-semibold group-hover:translate-x-0.5 transition-transform">
+                      {hasNotes && (
+                        <span title="Possui anotações" className="text-emerald-600">
+                          <FileText className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                      <span>Detalhes</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Progresso por Matéria com Classificação 70/30 */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -675,6 +787,12 @@ export function Dashboard() {
           })}
         </div>
       </div>
+
+      {/* Modal de Detalhes da Sessão */}
+      <SessionDetailsModal
+        sessionId={selectedSessionForDetails}
+        onClose={() => setSelectedSessionForDetails(null)}
+      />
     </div>
   );
 }

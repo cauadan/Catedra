@@ -21,6 +21,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  Cell,
 } from 'recharts';
 import {
   MIN_QUESTIONS,
@@ -518,7 +519,35 @@ export function Statistics() {
                 Nenhuma matéria com estudo registrado neste período.
               </p>
             ) : (
-              <div className="mt-3 overflow-x-auto">
+              <>
+                <div className="mt-4 mb-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                  <p className="text-xs font-bold text-slate-700 mb-2">
+                    Distribuição de Tempo Efetivo por Matéria (minutos)
+                  </p>
+                  <div className="overflow-x-auto">
+                    <BarChart
+                      width={760}
+                      height={170}
+                      data={bySubject.map((row) => ({
+                        name: row.subjectName,
+                        minutes: Math.round(row.effectiveMinutes),
+                        color: row.subjectColor || '#3B82F6',
+                      }))}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Bar dataKey="minutes" name="Minutos Efetivos" radius={[4, 4, 0, 0]}>
+                        {bySubject.map((row) => (
+                          <Cell key={row.subjectId} fill={row.subjectColor || '#3B82F6'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </div>
+                </div>
+
+                <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-500">
@@ -572,7 +601,8 @@ export function Statistics() {
                   </tbody>
                 </table>
               </div>
-            )}
+            </>
+          )}
           </div>
 
           {/* Tabela Por Assunto */}

@@ -337,4 +337,70 @@ export class StudySessionController {
       next(error);
     }
   }
+
+  /**
+   * PATCH /api/study-sessions/:id
+   * PATCH /api/study-sessions/:id/notes
+   */
+  static async updateNotes(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const id = req.params.id as string;
+      const notes =
+        typeof req.body.notes === 'string'
+          ? req.body.notes
+          : req.body.notes === null
+          ? null
+          : undefined;
+
+      if (notes === undefined) {
+        return res.status(400).json({
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'O campo notes deve ser uma string ou nulo.',
+          },
+        });
+      }
+
+      const session = await StudySessionService.updateNotes(userId, id, notes);
+      return res.status(200).json({ data: session });
+    } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        });
+      }
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/study-sessions
+   */
+  static async listRecent(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const limit = Math.min(
+        Math.max(parseInt((req.query.limit as string) || '10', 10) || 10, 1),
+        50
+      );
+      const sessions = await StudySessionService.listRecent(userId, limit);
+      return res.status(200).json({ data: sessions });
+    } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        });
+      }
+      next(error);
+    }
+  }
 }

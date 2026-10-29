@@ -343,7 +343,7 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, now);
-    });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /**
@@ -387,10 +387,32 @@ export class StudySessionService {
   }
 
   /**
+   * GET /api/study-sessions (recent finished sessions)
+   */
+  static async listRecent(userId: string, limit = 10): Promise<StudySessionView[]> {
+    const rawSessions = await prisma.studySession.findMany({
+      where: { user_id: userId, status: 'FINISHED' },
+      orderBy: { ended_at: 'desc' },
+      take: limit,
+      include: {
+        topic: { include: { subject: true } },
+        session_blocks: { orderBy: { position: 'asc' } },
+        session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+        practice_records: true,
+        evaluation: true,
+        planned_session: true,
+      },
+    });
+
+    const now = new Date();
+    return rawSessions.map((s) => toSessionView(s, now));
+  }
+
+  /**
    * GET /api/study-sessions/:id
    */
   static async getById(userId: string, id: string): Promise<StudySessionView> {
-    const session = await prisma.studySession.findFirst({
+    let session = await prisma.studySession.findFirst({
       where: { id, user_id: userId },
       include: {
         topic: { include: { subject: true } },
@@ -403,6 +425,108 @@ export class StudySessionService {
     });
 
     if (!session) {
+      session = await prisma.studySession.findFirst({
+        where: { planned_session_id: id, user_id: userId },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+        orderBy: { created_at: 'desc' },
+      });
+    }
+
+    if (!session) {
+      // Fallback: check if id matches a planned session
+      const planned = await prisma.plannedSession.findFirst({
+        where: { id, user_id: userId },
+        include: {
+          subject: true,
+          topic: true,
+          planned_blocks: { orderBy: { position: 'asc' } },
+          study_sessions: {
+            where: { status: 'FINISHED' },
+            include: {
+              topic: { include: { subject: true } },
+              session_blocks: { orderBy: { position: 'asc' } },
+              session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+              practice_records: true,
+              evaluation: true,
+              planned_session: true,
+            },
+            take: 1,
+          },
+        },
+      });
+
+      if (planned && planned.study_sessions.length > 0) {
+        return toSessionView(planned.study_sessions[0], new Date());
+      }
+
+      if (planned) {
+        const start = new Date(planned.scheduled_start);
+        const end = new Date(start.getTime() + planned.planned_minutes * 60000);
+        return {
+          id: planned.id,
+          user_id: planned.user_id,
+          planned_session_id: planned.id,
+          topic_id: planned.topic_id,
+          started_at: start.toISOString(),
+          ended_at: end.toISOString(),
+          status: 'FINISHED',
+          created_at: planned.created_at.toISOString(),
+          updated_at: planned.updated_at.toISOString(),
+          topic: {
+            id: planned.topic.id,
+            name: planned.topic.name,
+            subject: {
+              id: planned.subject.id,
+              name: planned.subject.name,
+              color: planned.subject.color,
+            },
+          },
+          session_blocks: planned.planned_blocks.map((b) => ({
+            id: b.id,
+            kind: b.kind,
+            planned_minutes: b.planned_minutes,
+            position: b.position,
+          })),
+          session_events: [],
+          practice_records: [],
+          evaluation: {
+            id: 'synth',
+            understanding: 'GOOD',
+            focus: 'MEDIUM',
+            difficulty: 'NORMAL',
+            notes: planned.notes,
+          },
+          metrics: {
+            effectiveSeconds: planned.planned_minutes * 60,
+            totalSeconds: planned.planned_minutes * 60,
+            plannedSeconds: planned.planned_minutes * 60,
+            effectiveness: 100,
+            adherence: 100,
+            delaySeconds: null,
+            activeBlockId: null,
+            blocks: planned.planned_blocks.map((b) => ({
+              blockId: b.id,
+              kind: b.kind as any,
+              plannedSeconds: b.planned_minutes * 60,
+              effectiveSeconds: b.planned_minutes * 60,
+              totalSeconds: b.planned_minutes * 60,
+              pausedSeconds: 0,
+              distractedRealtimeSeconds: 0,
+              distractedDeclaredSeconds: 0,
+              state: 'COMPLETED' as any,
+              isIncomplete: false,
+            })),
+          },
+        };
+      }
+
       throw new AppError(404, 'NOT_FOUND', 'Sessão de estudo não encontrada.');
     }
 
@@ -480,7 +604,7 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, now);
-    });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /**
@@ -598,7 +722,7 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, now);
-    });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /**
@@ -749,7 +873,7 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, now);
-    });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /**
@@ -808,7 +932,7 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, now);
-    });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /**
@@ -938,7 +1062,7 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, new Date());
-    });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   /**
@@ -1004,6 +1128,89 @@ export class StudySessionService {
       });
 
       return toSessionView(fullSession, now);
-    });
+    }, { timeout: 20000, maxWait: 10000 });
+  }
+
+  /**
+   * PATCH /api/study-sessions/:id
+   * Atualiza as anotações da sessão de estudo e reflete na avaliação / planejamento
+   */
+  static async updateNotes(
+    userId: string,
+    id: string,
+    notes: string | null
+  ): Promise<StudySessionView> {
+    return prisma.$transaction(async (tx) => {
+      let session = await tx.studySession.findFirst({
+        where: { id, user_id: userId },
+      });
+
+      if (!session) {
+        session = await tx.studySession.findFirst({
+          where: { planned_session_id: id, user_id: userId },
+          orderBy: { created_at: 'desc' },
+        });
+      }
+
+      const trimmedNotes = notes?.trim() || null;
+
+      if (!session) {
+        // Fallback: check if id is a PlannedSession
+        const planned = await tx.plannedSession.findFirst({
+          where: { id, user_id: userId },
+        });
+        if (planned) {
+          await tx.plannedSession.update({
+            where: { id: planned.id },
+            data: { notes: trimmedNotes },
+          });
+          return StudySessionService.getById(userId, planned.id);
+        }
+        throw new AppError(404, 'NOT_FOUND', 'Sessão de estudo não encontrada.');
+      }
+
+      const existingEval = await tx.sessionEvaluation.findUnique({
+        where: { study_session_id: session.id },
+      });
+
+      if (existingEval) {
+        await tx.sessionEvaluation.update({
+          where: { id: existingEval.id },
+          data: { notes: trimmedNotes },
+        });
+      } else {
+        await tx.sessionEvaluation.create({
+          data: {
+            user_id: userId,
+            study_session_id: session.id,
+            understanding: 'GOOD',
+            focus: 'MEDIUM',
+            difficulty: 'NORMAL',
+            notes: trimmedNotes,
+          },
+        });
+      }
+
+      if (session.planned_session_id) {
+        await tx.plannedSession.update({
+          where: { id: session.planned_session_id },
+          data: { notes: trimmedNotes },
+        });
+      }
+
+      const fullSession = await tx.studySession.findUniqueOrThrow({
+        where: { id: session.id },
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
+      });
+
+      return toSessionView(fullSession, new Date());
+    }, { timeout: 20000, maxWait: 10000 });
   }
 }

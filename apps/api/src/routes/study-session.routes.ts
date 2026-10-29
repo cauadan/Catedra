@@ -8,6 +8,7 @@ export const studySessionRouter = Router();
 studySessionRouter.use(authMiddleware);
 
 // Ordem obrigatória: declarar rotas estáticas antes dos parâmetros de caminho (:id)
+studySessionRouter.get('/', StudySessionController.listRecent);
 studySessionRouter.post('/', StudySessionController.create);
 studySessionRouter.get('/active', StudySessionController.getActive);
 studySessionRouter.get('/pending-evaluation', StudySessionController.getPendingEvaluation);
@@ -17,4 +18,6 @@ studySessionRouter.post('/:id/blocks/:blockId/finish', StudySessionController.fi
 studySessionRouter.post('/:id/finish', StudySessionController.finish);
 studySessionRouter.post('/:id/cancel', StudySessionController.cancel);
 studySessionRouter.patch('/:id/blocks', StudySessionController.updateBlocks);
+studySessionRouter.patch('/:id/notes', StudySessionController.updateNotes);
+studySessionRouter.patch('/:id', StudySessionController.updateNotes);
 studySessionRouter.post('/:id/evaluation', StudySessionController.evaluate);

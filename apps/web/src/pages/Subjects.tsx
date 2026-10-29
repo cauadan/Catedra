@@ -95,6 +95,234 @@ function CustomDialog({
   );
 }
 
+const PRESET_COLORS = [
+  { name: 'Esmeralda', hex: '#10B981' },
+  { name: 'Âmbar', hex: '#F59E0B' },
+  { name: 'Azul', hex: '#3B82F6' },
+  { name: 'Roxo', hex: '#8B5CF6' },
+  { name: 'Rosa', hex: '#EC4899' },
+  { name: 'Ciano', hex: '#06B6D4' },
+  { name: 'Vermelho', hex: '#EF4444' },
+  { name: 'Índigo', hex: '#6366F1' },
+];
+
+function SubjectColorPopover({
+  currentColor,
+  onSelectColor,
+}: {
+  currentColor: string;
+  onSelectColor: (color: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative inline-flex items-center" ref={popoverRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        title="Alterar cor da matéria"
+        className="group relative flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm"
+        style={{ backgroundColor: currentColor }}
+      >
+        <span className="sr-only">Alterar cor</span>
+        <span className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/15 transition-colors" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-7 z-50 w-64 rounded-xl border border-slate-200 bg-white p-3.5 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="mb-2.5 flex items-center justify-between border-b border-slate-100 pb-2">
+            <span className="text-xs font-bold text-slate-700">Paleta de Cores</span>
+            <div
+              className="h-3.5 w-3.5 rounded-full border border-slate-200"
+              style={{ backgroundColor: currentColor }}
+            />
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            {PRESET_COLORS.map((color) => {
+              const isSelected = currentColor.toLowerCase() === color.hex.toLowerCase();
+              return (
+                <button
+                  key={color.hex}
+                  type="button"
+                  title={color.name}
+                  onClick={() => {
+                    onSelectColor(color.hex);
+                    setIsOpen(false);
+                  }}
+                  className={`group relative flex h-7 w-7 items-center justify-center rounded-full transition-all hover:scale-110 ${
+                    isSelected ? 'ring-2 ring-slate-800 ring-offset-2' : ''
+                  }`}
+                  style={{ backgroundColor: color.hex }}
+                >
+                  {isSelected && <Check className="h-3.5 w-3.5 text-white stroke-[3]" />}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs text-slate-600">
+            <span className="font-medium">Personalizada:</span>
+            <label className="flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 px-2 py-1 hover:bg-slate-50 transition">
+              <input
+                type="color"
+                value={currentColor}
+                onChange={(e) => {
+                  onSelectColor(e.target.value);
+                }}
+                className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0"
+              />
+              <span className="font-mono text-[11px] text-slate-600 uppercase">
+                {currentColor}
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewSubjectModal({
+  isOpen,
+  onClose,
+  onCreate,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (name: string, color: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [color, setColor] = useState('#10B981');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setColor('#10B981');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (name.trim()) {
+      onCreate(name.trim(), color);
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <h3 className="text-lg font-bold text-slate-900 mb-1">Nova Matéria</h3>
+        <p className="text-xs text-slate-500 mb-4">
+          Defina o nome e a cor de identificação da sua matéria de estudo.
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Nome da Matéria
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex.: Direito Constitucional, Matemática, Biologia..."
+              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+              required
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold text-slate-700">
+                Cor de Destaque
+              </label>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-3.5 w-3.5 rounded-full"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="font-mono text-xs text-slate-500 uppercase">{color}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              {PRESET_COLORS.map((c) => {
+                const isSelected = color.toLowerCase() === c.hex.toLowerCase();
+                return (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    title={c.name}
+                    onClick={() => setColor(c.hex)}
+                    className={`flex h-8 items-center justify-center rounded-xl transition-all ${
+                      isSelected ? 'ring-2 ring-slate-800 ring-offset-2 scale-105' : 'hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                  >
+                    {isSelected && <Check className="h-4 w-4 text-white stroke-[3]" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-700">
+              <span className="font-medium">Ou escolha uma cor personalizada:</span>
+              <label className="flex items-center gap-2 cursor-pointer rounded-lg bg-white border border-slate-200 px-2 py-1 shadow-sm hover:bg-slate-50 transition">
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0"
+                />
+                <span className="font-mono text-[11px] text-slate-700 uppercase">{color}</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition disabled:opacity-50"
+            >
+              Criar Matéria
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function Subjects() {
   const queryClient = useQueryClient();
   const [showArchived, setShowArchived] = useState(false);
@@ -127,8 +355,30 @@ export function Subjects() {
   const updateSubject = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<SubjectDTO> }) =>
       api.patch(`/api/subjects/${id}`, data),
-    onSuccess: () => queryClient.invalidateQueries(),
-    onError: (err: ApiError) => setErrorMsg(err.message),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['subjects'] });
+      const previousSubjects = queryClient.getQueriesData<SubjectDTO[]>({ queryKey: ['subjects'] });
+      queryClient.setQueriesData<SubjectDTO[]>({ queryKey: ['subjects'] }, (old) =>
+        old ? old.map((s) => (s.id === id ? { ...s, ...data } : s)) : []
+      );
+      return { previousSubjects };
+    },
+    onError: (err: ApiError, _vars, context) => {
+      if (context?.previousSubjects) {
+        for (const [key, val] of context.previousSubjects) {
+          queryClient.setQueryData(key, val);
+        }
+      }
+      setErrorMsg(err.message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['agenda'] });
+      queryClient.invalidateQueries({ queryKey: ['planned-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['observatory'] });
+    },
   });
 
   const deleteSubject = useMutation({
@@ -206,14 +456,10 @@ export function Subjects() {
   });
 
   const [dialogState, setDialogState] = useState<any>(null);
+  const [isNewSubjectOpen, setIsNewSubjectOpen] = useState(false);
 
   const handleAddSubject = () => {
-    setDialogState({
-      title: 'Nome da matéria:',
-      onConfirm: (name: string) => {
-        if (name) createSubject.mutate({ name, color: '#3B82F6' });
-      },
-    });
+    setIsNewSubjectOpen(true);
   };
 
   const handleAddTopic = (subject_id: string, parent_id: string | null = null) => {
@@ -424,10 +670,15 @@ export function Subjects() {
               >
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 pb-3 border-b border-slate-100">
                   <div className="flex items-center space-x-3">
-                    <div
-                      className="w-4 h-4 rounded-full shrink-0"
-                      style={{ backgroundColor: subject.color }}
-                    ></div>
+                    <SubjectColorPopover
+                      currentColor={subject.color || '#10B981'}
+                      onSelectColor={(newColor) =>
+                        updateSubject.mutate({
+                          id: subject.id,
+                          data: { color: newColor },
+                        })
+                      }
+                    />
                     <h2
                       className={`text-lg font-bold ${
                         subject.archived ? 'line-through text-slate-400' : 'text-slate-900'
@@ -498,6 +749,11 @@ export function Subjects() {
           dialogState?.onConfirm(val);
           setDialogState(null);
         }}
+      />
+      <NewSubjectModal
+        isOpen={isNewSubjectOpen}
+        onClose={() => setIsNewSubjectOpen(false)}
+        onCreate={(name, color) => createSubject.mutate({ name, color })}
       />
     </div>
   );

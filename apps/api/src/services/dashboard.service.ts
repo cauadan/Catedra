@@ -29,6 +29,7 @@ import { toSessionView, type StudySessionView } from './study-session.service.js
 
 export interface DashboardPlannedSessionCard {
   id: string;
+  study_session_id?: string | null;
   subject_id: string;
   subject_name: string;
   subject_color: string;
@@ -109,6 +110,7 @@ export class DashboardService {
       activeSessionRaw,
       pendingEvalSessionRaw,
       rawGoals,
+      rawRecentSessions,
     ] = await Promise.all([
       prisma.subject.findMany({
         where: { user_id: userId },
@@ -137,6 +139,11 @@ export class DashboardService {
           priority: true,
           activity_type: true,
           status: true,
+          study_sessions: {
+            where: { status: 'FINISHED' },
+            select: { id: true },
+            take: 1,
+          },
         },
         orderBy: { scheduled_start: 'asc' },
       }),
@@ -241,6 +248,22 @@ export class DashboardService {
           ],
         },
         orderBy: [{ created_at: 'asc' }],
+      }),
+      prisma.studySession.findMany({
+        where: {
+          user_id: userId,
+          status: 'FINISHED',
+        },
+        orderBy: { ended_at: 'desc' },
+        take: 10,
+        include: {
+          topic: { include: { subject: true } },
+          session_blocks: { orderBy: { position: 'asc' } },
+          session_events: { orderBy: [{ occurred_at: 'asc' }, { created_at: 'asc' }] },
+          practice_records: true,
+          evaluation: true,
+          planned_session: true,
+        },
       }),
     ]);
 
@@ -377,6 +400,7 @@ export class DashboardService {
         priority: string;
         activity_type: string | null;
         status: string;
+        study_sessions?: Array<{ id: string }>;
       },
       isFutureDay: boolean
     ): DashboardPlannedSessionCard => {
@@ -391,6 +415,7 @@ export class DashboardService {
 
       return {
         id: ps.id,
+        study_session_id: ps.study_sessions?.[0]?.id ?? null,
         subject_id: ps.subject_id,
         subject_name: subj?.name ?? 'Matéria',
         subject_color: subj?.color ?? '#3B82F6',
@@ -525,6 +550,7 @@ export class DashboardService {
       },
       subjectProgress: rolling30Stats.bySubject,
       classificationSummary,
+      recentSessions: rawRecentSessions.map((s) => toSessionView(s, referenceNow)),
       classificationWindow: {
         windowStartLocalDate: classificationWindow.windowStartLocalDate,
         windowEndLocalDate: classificationWindow.windowEndLocalDate,

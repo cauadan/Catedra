@@ -44,6 +44,7 @@ export interface PlannedSessionDTO {
   local_time: string;
   actual_effective_seconds?: number | null;
   actual_total_seconds?: number | null;
+  study_session_id?: string | null;
   subject: {
     id: string;
     name: string;
@@ -133,6 +134,7 @@ function mapPlannedSessionDTO(
     local_time: utcToLocalTime(scheduledStartDate, timezone),
     actual_effective_seconds: actualEffectiveSeconds,
     actual_total_seconds: actualTotalSeconds,
+    study_session_id: session.study_sessions?.[0]?.id ?? null,
     subject: {
       id: session.subject.id,
       name: session.subject.name,

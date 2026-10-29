@@ -16,6 +16,7 @@ import { utcToLocalDate, addDaysToLocalDate } from '@estudos/domain';
 import { AgendaHeader } from '../components/agenda/AgendaHeader';
 import { AgendaSummaryCards } from '../components/agenda/AgendaSummaryCards';
 import { PlannedSessionCard } from '../components/agenda/PlannedSessionCard';
+import { SessionDetailsModal } from '../components/session/SessionDetailsModal';
 import {
   PlannedSessionModal,
   type PlannedSessionPrefill,
@@ -116,6 +117,7 @@ export function Agenda() {
   } | null>(null);
 
   // Modal de conflito (sessão ativa ou avaliação pendente)
+  const [selectedSessionForDetails, setSelectedSessionForDetails] = useState<string | null>(null);
   const [conflictDialog, setConflictDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -438,6 +440,7 @@ export function Agenda() {
                   key={session.id}
                   session={session}
                   isOverlapping={overlappingIds.includes(session.id)}
+                  onViewDetails={(s) => setSelectedSessionForDetails(s.study_session_id || s.id)}
                   onStartStudy={handleStartStudy}
                   onEdit={handleEdit}
                   onReschedule={handleReschedule}
@@ -500,6 +503,7 @@ export function Agenda() {
                         key={session.id}
                         session={session}
                         isOverlapping={overlappingIds.includes(session.id)}
+                        onViewDetails={(s) => setSelectedSessionForDetails(s.study_session_id || s.id)}
                         onStartStudy={handleStartStudy}
                         onEdit={handleEdit}
                         onReschedule={handleReschedule}
@@ -588,6 +592,12 @@ export function Agenda() {
           </div>
         </div>
       )}
+
+      {/* Modal de Detalhes da Sessão */}
+      <SessionDetailsModal
+        sessionId={selectedSessionForDetails}
+        onClose={() => setSelectedSessionForDetails(null)}
+      />
     </div>
   );
 }
