@@ -11,8 +11,10 @@ import {
   ChevronRight,
   Check,
   CheckCircle2,
+  CheckSquare,
 } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
+import { useRouter } from '../contexts/RouterContext';
 
 type SubjectDTO = { id: string; name: string; color: string; archived: boolean };
 type TopicDTO = {
@@ -325,6 +327,7 @@ function NewSubjectModal({
 
 export function Subjects() {
   const queryClient = useQueryClient();
+  const { navigate } = useRouter();
   const [showArchived, setShowArchived] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -628,6 +631,12 @@ export function Subjects() {
             />
             <span>Mostrar arquivados</span>
           </label>
+          <button
+            onClick={() => navigate('/questions')}
+            className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl text-sm font-semibold flex items-center shadow-sm transition-colors"
+          >
+            <CheckSquare size={16} className="mr-1.5 text-emerald-600" /> Praticar Questões
+          </button>
           <button
             onClick={handleAddSubject}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center shadow-sm transition-colors"

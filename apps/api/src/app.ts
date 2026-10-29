@@ -10,6 +10,7 @@ import { goalRouter } from './routes/goal.routes.js';
 import { statisticsRouter } from './routes/statistics.routes.js';
 import { dashboardRouter } from './routes/dashboard.routes.js';
 import { observatoryRouter } from './routes/observatory.routes.js';
+import { questionRouter } from './routes/question.routes.js';
 
 /**
  * Instância da aplicação Express (apps/api)
@@ -55,6 +56,7 @@ app.use('/api/goals', goalRouter);
 app.use('/api/statistics', statisticsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/observatory', observatoryRouter);
+app.use('/api/questions', questionRouter);
 
 // Middleware de tratamento de rotas não encontradas (404)
 app.use((req: Request, res: Response) => {

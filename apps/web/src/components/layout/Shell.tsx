@@ -7,6 +7,7 @@ import {
   Target,
   BarChart2,
   Compass,
+  CheckSquare,
   LogOut,
   Menu,
   X,
@@ -27,6 +28,7 @@ export const navigationItems = [
   { id: 'goals', path: '/goals', label: 'Metas de Estudo', icon: Target },
   { id: 'stats', path: '/stats', label: 'Desempenho e Estatísticas', icon: BarChart2 },
   { id: 'observatory', path: '/observatory', label: 'Observatório Semanal', icon: Compass },
+  { id: 'questions', path: '/questions', label: 'Prática de Questões', icon: CheckSquare },
 ];
 
 export function Shell({ children }: ShellProps) {

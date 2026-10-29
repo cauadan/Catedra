@@ -12,6 +12,7 @@ import { Timer } from './pages/Timer';
 import { Goals } from './pages/Goals';
 import { Statistics } from './pages/Statistics';
 import { Observatory } from './pages/Observatory';
+import { QuestionsPractice } from './pages/QuestionsPractice';
 
 export const defaultQueryClientOptions = {
   queries: {
@@ -54,6 +55,8 @@ function AppRoutes() {
           <Statistics />
         ) : path === '/observatory' || path === '/observatorio' ? (
           <Observatory />
+        ) : path === '/questions' ? (
+          <QuestionsPractice />
         ) : (
           <Redirect to="/dashboard" />
         )}

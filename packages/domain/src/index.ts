@@ -23,6 +23,7 @@ export * from './study-session.js';
 export * from './goals.js';
 export * from './statistics.js';
 export * from './observatory.js';
+export * from './questions.js';
 
 // ==============================================================================
 // 1. ESQUEMAS DE AUTENTICAÇÃO E USUÁRIO
