@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { QuestionService } from '../services/question.service.js';
 import { questionBatchRequestSchema, questionAnswerRequestSchema } from '@estudos/domain';
+import { AppError } from '../utils/errors.js';
 
 export class QuestionController {
   /**
@@ -12,13 +13,22 @@ export class QuestionController {
       const data = await QuestionService.getCatalogInfo();
       return res.status(200).json(data);
     } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        });
+      }
       next(error);
     }
   }
 
   /**
    * POST /api/questions/generate-batch
-   * Gera lote de 5 ou 10 questões usando a cascata Cache-First.
+   * Gera lote de 5 ou 10 questões usando a cascata Cache-First com isolamento estrito por matéria/tópico.
    */
   static async generateBatch(req: Request, res: Response, next: NextFunction) {
     try {
@@ -46,6 +56,15 @@ export class QuestionController {
       const result = await QuestionService.generateBatch(userId, parseResult.data);
       return res.status(200).json(result);
     } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        });
+      }
       next(error);
     }
   }
@@ -80,6 +99,15 @@ export class QuestionController {
       const result = await QuestionService.answerQuestion(userId, parseResult.data);
       return res.status(200).json(result);
     } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        });
+      }
       next(error);
     }
   }
@@ -100,7 +128,8 @@ export class QuestionController {
         });
       }
 
-      const { topicId, subjectName, topicName, minutes, questionsCount, correctCount, notes } = req.body;
+      const { topicId, subjectName, topicName, minutes, questionsCount, correctCount, notes } =
+        req.body;
       const session = await QuestionService.logPracticeSession(userId, {
         topicId,
         subjectName,
@@ -113,6 +142,15 @@ export class QuestionController {
 
       return res.status(201).json({ data: session });
     } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        });
+      }
       next(error);
     }
   }

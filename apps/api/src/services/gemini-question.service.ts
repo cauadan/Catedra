@@ -17,7 +17,8 @@ export interface GeneratedQuestion {
 
 export class GeminiQuestionService {
   private static getApiKey(): string | undefined {
-    return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const key = process.env.GEMINI_API_KEY?.trim();
+    return key ? key : undefined;
   }
 
   public static isConfigured(): boolean {
@@ -31,30 +32,38 @@ export class GeminiQuestionService {
     count: number;
   }): Promise<GeneratedQuestion[]> {
     const apiKey = this.getApiKey();
-    if (!apiKey) {
+    if (!apiKey || params.count <= 0) {
       return [];
     }
 
     const { subjectName, topicName, format, count } = params;
+    const cleanTopic = topicName.trim();
+    const exactTheme = cleanTopic ? `${subjectName} - ${cleanTopic}` : subjectName;
 
     let formatInstruction = '';
     if (format === 'MULTIPLE_CHOICE') {
-      formatInstruction = 'Gere exclusivamente questões do tipo MULTIPLE_CHOICE (múltipla escolha com 4 alternativas, exatamente 1 correta).';
+      formatInstruction =
+        'Gere exclusivamente questões do tipo MULTIPLE_CHOICE (múltipla escolha com 4 alternativas, exatamente 1 correta).';
     } else if (format === 'TRUE_FALSE') {
-      formatInstruction = 'Gere exclusivamente questões do tipo TRUE_FALSE (estilo Cebraspe com afirmação e 2 opções: "Certo" e "Errado", exatamente 1 correta).';
+      formatInstruction =
+        'Gere exclusivamente questões do tipo TRUE_FALSE (estilo Cebraspe com afirmação e 2 opções: "Certo" e "Errado", exatamente 1 correta).';
     } else if (format === 'CODE_CHALLENGE') {
-      formatInstruction = 'Gere exclusivamente questões do tipo CODE_CHALLENGE (mini desafio prático de código com campo codeSnippet preenchido contendo um bug ou lacuna, e 3 a 4 opções com propostas de solução ou saída esperada).';
+      formatInstruction =
+        'Gere exclusivamente questões do tipo CODE_CHALLENGE (mini desafio prático de código com campo codeSnippet preenchido contendo um bug ou lacuna, e 3 a 4 opções com propostas de solução ou saída esperada).';
     } else {
-      formatInstruction = 'Gere uma mescla diversificada com questões MULTIPLE_CHOICE, TRUE_FALSE e CODE_CHALLENGE (se o tema permitir código).';
+      formatInstruction =
+        'Gere uma mescla diversificada com questões MULTIPLE_CHOICE, TRUE_FALSE e CODE_CHALLENGE (apenas se o tema comportar código).';
     }
 
     const prompt = `Você é um avaliador e professor especialista na plataforma de estudos para concursos e T.I. Cátedra.
-Gere exatamente ${count} questões de alto nível técnico e pedagógico para a matéria "${subjectName}" e o assunto "${topicName}".
+Gere exatamente ${count} questões inéditas de alto nível técnico e pedagógico EXCLUSIVAMENTE sobre o tema "${exactTheme}" (Matéria: "${subjectName}"${cleanTopic ? `, Assunto: "${cleanTopic}"` : ''}).
+REGRA DE ISOLAMENTO ABSOLUTO: É estritamente proibido incluir conteúdo ou conceitos de outras matérias fora de "${subjectName}".
 ${formatInstruction}
 
 IMPORTANTE: Responda APENAS com um array JSON válido contendo os objetos das questões, sem formatação markdown em volta do JSON (ou com bloco \`\`\`json se necessário, mas o conteúdo deve ser estritamente JSON parseável).
 Cada item do array deve ter a seguinte estrutura:
 {
+  "topicName": "Subtópico específico dentro da matéria",
   "type": "MULTIPLE_CHOICE" | "TRUE_FALSE" | "CODE_CHALLENGE",
   "difficulty": "EASY" | "MEDIUM" | "HARD",
   "statement": "Enunciado claro, objetivo e contextualizado",
@@ -71,24 +80,26 @@ Regras:
 4. Todo o texto deve estar em Português do Brasil.`;
 
     try {
-      // Tenta gemini-2.5-flash com fallback para gemini-1.5-flash
-      const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+      const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
       let responseData: any = null;
 
       for (const model of models) {
         try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
-                temperature: 0.3,
-                topK: 40,
-                topP: 0.95,
-              },
-            }),
-          });
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                  temperature: 0.3,
+                  topK: 40,
+                  topP: 0.95,
+                },
+              }),
+            }
+          );
 
           if (res.ok) {
             responseData = await res.json();
@@ -115,9 +126,16 @@ Regras:
         return [];
       }
 
-      return parsed.map((item: any) => {
+      const validItems: GeneratedQuestion[] = [];
+
+      for (const item of parsed) {
+        const statement = String(item?.statement || '').trim();
+        if (!statement) continue;
+
         let qType: QuestionType = 'MULTIPLE_CHOICE';
-        if (item.type === 'TRUE_FALSE' || item.type === 'CODE_CHALLENGE') {
+        if (format !== 'MIXED') {
+          qType = format;
+        } else if (item.type === 'TRUE_FALSE' || item.type === 'CODE_CHALLENGE') {
           qType = item.type;
         }
 
@@ -127,29 +145,42 @@ Regras:
         }
 
         const options = Array.isArray(item.options)
-          ? item.options.map((opt: any) => ({
-              text: String(opt.text || ''),
-              isCorrect: Boolean(opt.isCorrect),
-            }))
+          ? item.options
+              .map((opt: any) => ({
+                text: String(opt?.text || '').trim(),
+                isCorrect: Boolean(opt?.isCorrect),
+              }))
+              .filter((opt: { text: string }) => opt.text.length > 0)
           : [];
 
-        // Garante que há ao menos uma opção correta
-        if (!options.some((o: { isCorrect: boolean }) => o.isCorrect) && options.length > 0) {
+        if (options.length < 2) continue;
+
+        // Garante exatamente uma opção correta
+        const firstCorrectIdx = options.findIndex((o: { isCorrect: boolean }) => o.isCorrect);
+        if (firstCorrectIdx === -1) {
           options[0].isCorrect = true;
+        } else {
+          options.forEach((o: { isCorrect: boolean }, idx: number) => {
+            o.isCorrect = idx === firstCorrectIdx;
+          });
         }
 
-        return {
+        validItems.push({
           subjectName,
-          topicName,
+          topicName: cleanTopic || String(item.topicName || 'Geral').trim(),
           type: qType,
           difficulty: qDiff,
           source: 'IA Simulado (Gemini)',
-          statement: String(item.statement || ''),
+          statement,
           codeSnippet: item.codeSnippet ? String(item.codeSnippet) : null,
-          explanation: String(item.explanation || 'Gabarito oficial.'),
+          explanation: String(item.explanation || 'Gabarito oficial.').trim(),
           options,
-        };
-      });
+        });
+
+        if (validItems.length >= count) break;
+      }
+
+      return validItems;
     } catch (error) {
       console.warn('[GeminiQuestionService] Erro ao gerar questões com Gemini:', error);
       return [];

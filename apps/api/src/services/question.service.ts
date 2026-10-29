@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import {
   NATIVE_CATALOG,
@@ -8,6 +9,7 @@ import {
   CatalogInfoResponse,
   QuestionItemDTO,
 } from '@estudos/domain';
+import { AppError } from '../utils/errors.js';
 import { SEED_QUESTIONS } from './question-seed-data.js';
 import { GeminiQuestionService } from './gemini-question.service.js';
 import { QuizApiQuestionService } from './quizapi-question.service.js';
@@ -75,11 +77,10 @@ export class QuestionService {
   }
 
   /**
-   * Gera um lote de questões (5 ou 10) usando a cascata Cache-First:
-   * 1. Supabase Banco Local (priorizando não respondidas ou erradas pelo usuário).
-   * 2. QuizAPI (se ativa e compatível com T.I.).
-   * 3. Google Gemini Free Tier (se ativo e faltar questão).
-   * 4. Fallback para questões adicionais do banco local se APIs externas não estiverem ativas.
+   * Gera um lote de questões (5 ou 10) com isolamento estrito por matéria/tópico:
+   * 1. Supabase Banco Local restrito estritamente ao subjectName / topicId solicitado.
+   * 2. Se faltar questão e GEMINI_API_KEY estiver ativa: solicita apenas o complemento exato no mesmo tema e salva no Supabase.
+   * 3. Se GEMINI_API_KEY não estiver ativa ou falhar: retorna apenas as questões existentes daquela matéria/tópico com aviso, sem jamais vazar conteúdo de outras matérias.
    */
   public static async generateBatch(
     userId: string,
@@ -87,118 +88,143 @@ export class QuestionService {
   ): Promise<QuestionBatchResponse> {
     await this.ensureSeedLoaded();
 
+    let resolvedTopicId: string | undefined;
     let subjectName = params.subjectName?.trim() || '';
     let topicName = params.topicName?.trim() || '';
 
-    // Se veio topicId ou subjectId, busca os nomes reais no banco do usuário
+    // Se veio topicId ou subjectId, valida propriedade do usuário e obtém os nomes exatos
     if (params.topicId) {
-      const topic = await prisma.topic.findUnique({
-        where: { id: params.topicId },
+      const topic = await prisma.topic.findFirst({
+        where: { id: params.topicId, user_id: userId },
         include: { subject: true },
       });
-      if (topic) {
-        topicName = topic.name;
-        subjectName = topic.subject.name;
+      if (!topic) {
+        throw new AppError(404, 'NOT_FOUND', 'Assunto não encontrado.');
       }
+      resolvedTopicId = topic.id;
+      topicName = topic.name.trim();
+      subjectName = topic.subject.name.trim();
     } else if (params.subjectId) {
-      const subject = await prisma.subject.findUnique({
-        where: { id: params.subjectId },
+      const subject = await prisma.subject.findFirst({
+        where: { id: params.subjectId, user_id: userId },
       });
-      if (subject) {
-        subjectName = subject.name;
+      if (!subject) {
+        throw new AppError(404, 'NOT_FOUND', 'Matéria não encontrada.');
       }
+      subjectName = subject.name.trim();
+    }
+
+    if (!resolvedTopicId && !subjectName && !topicName) {
+      throw new AppError(
+        400,
+        'BAD_REQUEST',
+        'Informe uma matéria ou assunto para gerar o lote de questões.'
+      );
     }
 
     const count = params.count || 5;
     const format = params.format || 'MIXED';
+    const typeFilter: Prisma.QuestionWhereInput = format !== 'MIXED' ? { type: format } : {};
 
-    // Monta filtro Prisma
-    const typeFilter = format !== 'MIXED' ? { type: format } : {};
+    const isGenericTopic =
+      !topicName ||
+      ['geral', 'todos', 'todas', 'todos os assuntos'].includes(topicName.toLowerCase());
 
-    // 1. Busca questões locais compatíveis
-    const candidateQuestions = await prisma.question.findMany({
-      where: {
+    // Filtro estrito: NUNCA permite que questões de outras matérias entrem na consulta
+    let strictWhere: Prisma.QuestionWhereInput;
+    if (resolvedTopicId) {
+      strictWhere = {
         ...typeFilter,
-        ...(subjectName
-          ? {
-              OR: [
-                { subjectName: { contains: subjectName, mode: 'insensitive' } },
-                { topicName: { contains: topicName || subjectName, mode: 'insensitive' } },
-              ],
-            }
+        OR: [
+          { topicId: resolvedTopicId },
+          {
+            subjectName: { equals: subjectName, mode: 'insensitive' },
+            ...(!isGenericTopic
+              ? { topicName: { contains: topicName, mode: 'insensitive' } }
+              : {}),
+          },
+        ],
+      };
+    } else if (subjectName) {
+      strictWhere = {
+        ...typeFilter,
+        subjectName: { equals: subjectName, mode: 'insensitive' },
+        ...(!isGenericTopic
+          ? { topicName: { contains: topicName, mode: 'insensitive' } }
           : {}),
-      },
+      };
+    } else {
+      strictWhere = {
+        ...typeFilter,
+        topicName: { contains: topicName, mode: 'insensitive' },
+      };
+    }
+
+    // 1. Busca questões locais estritamente restritas à matéria/tópico solicitado
+    const candidateQuestions = await prisma.question.findMany({
+      where: strictWhere,
       include: {
         options: true,
       },
     });
 
-    // Busca histórico de tentativas do usuário para priorizar:
-    // Nunca respondidas > Respondidas com erro > Já acertadas
-    const attempts = await prisma.questionAttempt.findMany({
-      where: { userId },
-      select: { questionId: true, isCorrect: true },
-    });
+    // Busca histórico de tentativas do usuário nas questões candidatas para priorizar:
+    // 0 = Nunca respondidas > 1 = Respondidas com erro > 2 = Já acertadas
+    const candidateIds = candidateQuestions.map((q) => q.id);
+    const attempts =
+      candidateIds.length > 0
+        ? await prisma.questionAttempt.findMany({
+            where: { userId, questionId: { in: candidateIds } },
+            select: { questionId: true, isCorrect: true },
+          })
+        : [];
 
     const correctIds = new Set(attempts.filter((a) => a.isCorrect).map((a) => a.questionId));
-    const failedIds = new Set(attempts.filter((a) => !a.isCorrect && !correctIds.has(a.questionId)).map((a) => a.questionId));
+    const failedIds = new Set(
+      attempts.filter((a) => !a.isCorrect && !correctIds.has(a.questionId)).map((a) => a.questionId)
+    );
 
     const scoredQuestions = candidateQuestions.map((q) => {
-      let priority = 0; // 0 = Nunca feita (prioridade máxima)
-      if (failedIds.has(q.id)) priority = 1; // 1 = Errada anteriormente
-      if (correctIds.has(q.id)) priority = 2; // 2 = Já dominada
+      let priority = 0;
+      if (failedIds.has(q.id)) priority = 1;
+      if (correctIds.has(q.id)) priority = 2;
       return { question: q, priority, random: Math.random() };
     });
 
-    // Ordena por prioridade e depois aleatoriamente para variar as sessões
     scoredQuestions.sort((a, b) => a.priority - b.priority || a.random - b.random);
 
     const selectedFromDb = scoredQuestions.slice(0, count).map((item) => item.question);
-    let fromCache = selectedFromDb.length;
+    const fromCache = selectedFromDb.length;
     let fromExternal = 0;
 
-    // Se faltarem questões para atingir a quantidade solicitada (ex.: 5 ou 10), busca de fontes externas gratuitas
-    if (selectedFromDb.length < count) {
+    // 2. Se faltarem questões no banco local para atingir a quantidade solicitada
+    if (selectedFromDb.length < count && GeminiQuestionService.isConfigured()) {
       const missingCount = count - selectedFromDb.length;
-      let externalGenerated: any[] = [];
+      const targetSubject = subjectName || topicName;
+      const targetTopic = !isGenericTopic ? topicName : '';
 
-      // Passo 2a: QuizAPI (se configurada e T.I.)
-      if (QuizApiQuestionService.isConfigured()) {
-        const fromQuiz = await QuizApiQuestionService.fetchQuestions({
-          subjectName: subjectName || 'Tecnologia da Informação',
-          topicName: topicName || 'Geral',
-          count: missingCount,
-        });
-        externalGenerated.push(...fromQuiz);
-      }
+      const fromGemini = await GeminiQuestionService.generateQuestions({
+        subjectName: targetSubject,
+        topicName: targetTopic,
+        format,
+        count: missingCount,
+      });
 
-      // Passo 2b: Gemini Free Tier (se faltar e estiver configurado)
-      const remainingNeeded = missingCount - externalGenerated.length;
-      if (remainingNeeded > 0 && GeminiQuestionService.isConfigured()) {
-        const fromGemini = await GeminiQuestionService.generateQuestions({
-          subjectName: subjectName || 'Conhecimentos Gerais',
-          topicName: topicName || 'Prática',
-          format,
-          count: remainingNeeded,
-        });
-        externalGenerated.push(...fromGemini);
-      }
-
-      // Persiste no Supabase qualquer questão gerada externamente para alimentar o acervo (Cache permanente)
-      for (const ext of externalGenerated) {
+      for (const ext of fromGemini.slice(0, missingCount)) {
         try {
           const saved = await prisma.question.create({
             data: {
-              subjectName: ext.subjectName,
-              topicName: ext.topicName,
+              topicId: resolvedTopicId || null,
+              subjectName: targetSubject,
+              topicName: targetTopic || ext.topicName || 'Geral',
               type: ext.type,
               difficulty: ext.difficulty,
               source: ext.source,
               statement: ext.statement,
-              codeSnippet: ext.codeSnippet,
+              codeSnippet: ext.codeSnippet || null,
               explanation: ext.explanation,
               options: {
-                create: ext.options.map((opt: any) => ({
+                create: ext.options.map((opt) => ({
                   text: opt.text,
                   isCorrect: opt.isCorrect,
                 })),
@@ -210,24 +236,7 @@ export class QuestionService {
           fromExternal++;
           if (selectedFromDb.length >= count) break;
         } catch (err) {
-          console.warn('[QuestionService] Erro ao salvar questão externa no banco:', err);
-        }
-      }
-
-      // Se ainda faltar e não tiver APIs externas ativas, busca outras questões locais do banco
-      if (selectedFromDb.length < count) {
-        const existingIds = new Set(selectedFromDb.map((q) => q.id));
-        const fallbackQuestions = await prisma.question.findMany({
-          where: {
-            id: { notIn: Array.from(existingIds) },
-            ...typeFilter,
-          },
-          include: { options: true },
-          take: count - selectedFromDb.length,
-        });
-        for (const fb of fallbackQuestions) {
-          selectedFromDb.push(fb);
-          fromCache++;
+          console.warn('[QuestionService] Erro ao salvar questão gerada no banco:', err);
         }
       }
     }
@@ -249,17 +258,42 @@ export class QuestionService {
       })),
     }));
 
-    const totalAvailable = await prisma.question.count();
+    const themeLabel =
+      subjectName && !isGenericTopic
+        ? `${subjectName} - ${topicName}`
+        : subjectName || topicName;
+
+    let notice: string | null = null;
+    if (questions.length === 0) {
+      notice = `Acervo local concluído para "${themeLabel}": nenhuma questão encontrada neste formato no banco local.`;
+    } else if (questions.length < count) {
+      notice = `Acervo local concluído para "${themeLabel}": lote ajustado para ${questions.length} de ${count} questões disponíveis exclusivamente neste assunto.`;
+    }
+
+    const totalAvailable = await prisma.question.count({ where: strictWhere });
 
     return {
       questions,
+      requestedCount: count,
+      actualCount: questions.length,
       totalAvailable,
+      notice,
       providerSummary: {
         fromCache,
         fromExternal,
-        isExternalAvailable: GeminiQuestionService.isConfigured() || QuizApiQuestionService.isConfigured(),
+        isExternalAvailable: GeminiQuestionService.isConfigured(),
       },
     };
+  }
+
+  /**
+   * Alias de compatibilidade para busca/geração de lote estrito.
+   */
+  public static async getQuestionsBatch(
+    userId: string,
+    params: QuestionBatchRequest
+  ): Promise<QuestionBatchResponse> {
+    return this.generateBatch(userId, params);
   }
 
   /**
@@ -275,7 +309,7 @@ export class QuestionService {
     });
 
     if (!question) {
-      throw new Error('Questão não encontrada.');
+      throw new AppError(404, 'NOT_FOUND', 'Questão não encontrada.');
     }
 
     let isCorrect = false;
@@ -323,6 +357,15 @@ export class QuestionService {
   ) {
     let topicId = params.topicId;
 
+    if (topicId) {
+      const ownedTopic = await prisma.topic.findFirst({
+        where: { id: topicId, user_id: userId },
+      });
+      if (!ownedTopic) {
+        throw new AppError(404, 'NOT_FOUND', 'Assunto não encontrado.');
+      }
+    }
+
     // Se não tiver topicId, localiza ou cria a matéria e o tópico para o usuário
     if (!topicId) {
       const subjectName = params.subjectName || 'Prática Geral';
@@ -342,7 +385,11 @@ export class QuestionService {
 
       const topicName = params.topicName || 'Questões Resolvidas';
       let topic = await prisma.topic.findFirst({
-        where: { user_id: userId, subject_id: subject.id, name: { equals: topicName, mode: 'insensitive' } },
+        where: {
+          user_id: userId,
+          subject_id: subject.id,
+          name: { equals: topicName, mode: 'insensitive' },
+        },
       });
 
       if (!topic) {
@@ -361,7 +408,8 @@ export class QuestionService {
     const minutes = Math.max(1, params.minutes || 15);
     const startedAt = new Date(Date.now() - minutes * 60 * 1000);
     const endedAt = new Date();
-    const accuracy = params.questionsCount > 0 ? (params.correctCount / params.questionsCount) * 100 : 0;
+    const accuracy =
+      params.questionsCount > 0 ? (params.correctCount / params.questionsCount) * 100 : 0;
 
     const session = await prisma.studySession.create({
       data: {

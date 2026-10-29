@@ -42,12 +42,13 @@ export function QuestionsPractice() {
 
   // Estados de Configuração da Prática
   const [selectedSubject, setSelectedSubject] = useState<string>('Banco de Dados & SQL');
-  const [selectedTopic, setSelectedTopic] = useState<string>('Consultas SELECT, JOIN e GROUP BY');
+  const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedFormat, setSelectedFormat] = useState<QuestionFormatDTO>('MIXED');
   const [questionCount, setQuestionCount] = useState<5 | 10>(5);
 
   // Estados da Sessão Ativa de Prática
   const [activeBatch, setActiveBatch] = useState<QuestionItemDTO[] | null>(null);
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState<QuestionAnswerResponse | null>(null);
@@ -87,6 +88,7 @@ export function QuestionsPractice() {
       count: 5 | 10;
     }) => api.post<QuestionBatchResponse>('/api/questions/generate-batch', payload),
     onSuccess: (data) => {
+      setBatchNotice(data.notice || null);
       if (data.questions && data.questions.length > 0) {
         setActiveBatch(data.questions);
         setCurrentIndex(0);
@@ -96,6 +98,8 @@ export function QuestionsPractice() {
         setShowSolutionEarly(false);
         setBatchFinished(false);
         setLogSuccess(false);
+      } else {
+        setActiveBatch(null);
       }
     },
   });
@@ -179,6 +183,7 @@ export function QuestionsPractice() {
 
   const handleResetToCatalog = () => {
     setActiveBatch(null);
+    setBatchNotice(null);
     setCurrentIndex(0);
     setSelectedOptionId(null);
     setCurrentAnswer(null);
@@ -189,7 +194,8 @@ export function QuestionsPractice() {
 
   const handleSelectNativeCatalogItem = (item: NativeCatalogItem, topicName?: string) => {
     setSelectedSubject(item.subjectName);
-    setSelectedTopic(topicName || item.topics[0] || 'Geral');
+    setSelectedTopic(topicName || '');
+    setBatchNotice(null);
   };
 
   return (
@@ -346,12 +352,8 @@ export function QuestionsPractice() {
                 value={selectedSubject}
                 onChange={(e) => {
                   setSelectedSubject(e.target.value);
-                  const found = (catalogInfo?.catalog || NATIVE_CATALOG).find(
-                    (c) => c.subjectName === e.target.value
-                  );
-                  if (found && found.topics[0]) {
-                    setSelectedTopic(found.topics[0]);
-                  }
+                  setSelectedTopic('');
+                  setBatchNotice(null);
                 }}
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
@@ -377,13 +379,16 @@ export function QuestionsPractice() {
             {/* Tópico / Assunto */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Assunto / Tópico
+                Assunto / Tópico (Opcional)
               </label>
               <input
                 type="text"
                 value={selectedTopic}
-                onChange={(e) => setSelectedTopic(e.target.value)}
-                placeholder="Ex.: SQL SELECT, Redes, Controle..."
+                onChange={(e) => {
+                  setSelectedTopic(e.target.value);
+                  setBatchNotice(null);
+                }}
+                placeholder="Todos os assuntos da matéria..."
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
@@ -437,6 +442,12 @@ export function QuestionsPractice() {
             </div>
           </div>
 
+          {batchNotice && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs font-medium text-amber-900">
+              {batchNotice}
+            </div>
+          )}
+
           <div className="mt-6 flex justify-end">
             <button
               type="button"
@@ -463,6 +474,12 @@ export function QuestionsPractice() {
       {/* 4. PLAYER DE QUESTÕES (LOTE ATIVO) */}
       {activeBatch && currentQuestion && !batchFinished && (
         <div className="space-y-4">
+          {batchNotice && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs font-medium text-amber-900">
+              {batchNotice}
+            </div>
+          )}
+
           {/* Barra de Progresso do Lote */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-2">
@@ -745,7 +762,7 @@ export function QuestionsPractice() {
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               Você respondeu todas as {activeBatch.length} questões de{' '}
-              <strong>{selectedSubject}</strong> ({selectedTopic}).
+              <strong>{selectedSubject}</strong> ({selectedTopic || 'Todos os assuntos'}).
             </p>
           </div>
 
@@ -773,7 +790,8 @@ export function QuestionsPractice() {
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-xs text-emerald-900">
             {userScore / activeBatch.length >= 0.8 ? (
               <p className="font-medium">
-                🎯 <strong>Excelente desempenho!</strong> Seu domínio sobre {selectedTopic} está bem consolidado.
+                🎯 <strong>Excelente desempenho!</strong> Seu domínio sobre{' '}
+                {selectedTopic || selectedSubject} está bem consolidado.
               </p>
             ) : userScore / activeBatch.length >= 0.5 ? (
               <p className="font-medium">
@@ -841,7 +859,8 @@ export function QuestionsPractice() {
                     <strong className="text-slate-700">Matéria:</strong> {selectedSubject}
                   </div>
                   <div>
-                    <strong className="text-slate-700">Assunto:</strong> {selectedTopic}
+                    <strong className="text-slate-700">Assunto:</strong>{' '}
+                    {selectedTopic || 'Todos os assuntos'}
                   </div>
                   <div>
                     <strong className="text-slate-700">Questões Resolvidas:</strong>{' '}

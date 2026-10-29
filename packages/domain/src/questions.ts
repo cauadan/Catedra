@@ -151,7 +151,10 @@ export interface QuestionItemDTO {
 
 export interface QuestionBatchResponse {
   questions: QuestionItemDTO[];
+  requestedCount?: number;
+  actualCount?: number;
   totalAvailable: number;
+  notice?: string | null;
   providerSummary: {
     fromCache: number;
     fromExternal: number;
