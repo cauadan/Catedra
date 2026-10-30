@@ -80,15 +80,12 @@ Regras:
 4. Todo o texto deve estar em Português do Brasil.`;
 
     try {
-      const models = ['gemini-1.5-flash', 'gemini-2.0-flash'] as const;
+      const MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
       let responseData: any = null;
       let lastHttpError = '';
 
-      for (const model of models) {
-        const url =
-          model === 'gemini-1.5-flash'
-            ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
-            : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      for (const model of MODELS) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
         const res = await fetch(url, {
           method: 'POST',
@@ -109,9 +106,13 @@ Regras:
 
         const errBody = await res.text();
         lastHttpError = `Modelo ${model} retornou HTTP ${res.status}: ${errBody}`;
-        if (res.status !== 404) {
-          throw new Error(lastHttpError);
+        if (res.status === 404) {
+          console.warn(
+            `[GeminiQuestionService] Modelo ${model} indisponível (404), tentando próximo fallback...`
+          );
+          continue;
         }
+        throw new Error(lastHttpError);
       }
 
       if (!responseData) {

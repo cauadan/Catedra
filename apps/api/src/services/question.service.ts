@@ -172,33 +172,29 @@ export class QuestionService {
       },
     });
 
-    // Busca histórico de tentativas do usuário nas questões candidatas para priorizar:
-    // 0 = Nunca respondidas > 1 = Respondidas com erro > 2 = Já acertadas
-    const candidateIds = candidateQuestions.map((q) => q.id);
-    const attempts =
-      candidateIds.length > 0
-        ? await prisma.questionAttempt.findMany({
-            where: { userId, questionId: { in: candidateIds } },
-            select: { questionId: true, isCorrect: true },
-          })
-        : [];
+    // Prioriza por histórico do usuário: 0 = Nunca respondidas > 1 = Erradas > 2 = Já acertadas
+    const prioritize = async (items: typeof candidateQuestions) => {
+      if (items.length === 0) return [];
+      const attempts = await prisma.questionAttempt.findMany({
+        where: { userId, questionId: { in: items.map((q) => q.id) } },
+        select: { questionId: true, isCorrect: true },
+      });
+      const correctIds = new Set(attempts.filter((a) => a.isCorrect).map((a) => a.questionId));
+      const failedIds = new Set(
+        attempts.filter((a) => !a.isCorrect && !correctIds.has(a.questionId)).map((a) => a.questionId)
+      );
+      return items
+        .map((q) => ({
+          question: q,
+          priority: correctIds.has(q.id) ? 2 : failedIds.has(q.id) ? 1 : 0,
+          random: Math.random(),
+        }))
+        .sort((a, b) => a.priority - b.priority || a.random - b.random)
+        .map((item) => item.question);
+    };
 
-    const correctIds = new Set(attempts.filter((a) => a.isCorrect).map((a) => a.questionId));
-    const failedIds = new Set(
-      attempts.filter((a) => !a.isCorrect && !correctIds.has(a.questionId)).map((a) => a.questionId)
-    );
-
-    const scoredQuestions = candidateQuestions.map((q) => {
-      let priority = 0;
-      if (failedIds.has(q.id)) priority = 1;
-      if (correctIds.has(q.id)) priority = 2;
-      return { question: q, priority, random: Math.random() };
-    });
-
-    scoredQuestions.sort((a, b) => a.priority - b.priority || a.random - b.random);
-
-    const selectedFromDb = scoredQuestions.slice(0, count).map((item) => item.question);
-    const fromCache = selectedFromDb.length;
+    const selectedFromDb = (await prioritize(candidateQuestions)).slice(0, count);
+    let fromCache = selectedFromDb.length;
     let fromExternal = 0;
 
     // 2. Se faltarem questões no banco local para atingir a quantidade solicitada
@@ -253,6 +249,25 @@ export class QuestionService {
       }
     }
 
+    // 3. Se pediu subtópico específico e ainda faltam questões (falha/retorno parcial externo ou sem chave),
+    // completa o lote com outras questões salvas no Supabase do MESMO subjectName
+    if (selectedFromDb.length < count && subjectName && (!isGenericTopic || Boolean(resolvedTopicId))) {
+      const remaining = count - selectedFromDb.length;
+      const sameSubjectExtras = await prisma.question.findMany({
+        where: {
+          ...typeFilter,
+          subjectName: { equals: subjectName, mode: 'insensitive' },
+          ...(selectedFromDb.length > 0
+            ? { id: { notIn: selectedFromDb.map((q) => q.id) } }
+            : {}),
+        },
+        include: { options: true },
+      });
+      const prioritizedExtras = (await prioritize(sameSubjectExtras)).slice(0, remaining);
+      selectedFromDb.push(...prioritizedExtras);
+      fromCache += prioritizedExtras.length;
+    }
+
     // Mapeia para DTO ocultando estritamente isCorrect nas opções para segurança
     const questions: QuestionItemDTO[] = selectedFromDb.map((q) => ({
       id: q.id,
@@ -279,10 +294,13 @@ export class QuestionService {
     if (questions.length === 0) {
       notice = `Acervo local concluído para "${themeLabel}": nenhuma questão encontrada neste formato no banco local.`;
     } else if (questions.length < count) {
-      notice = `Acervo local concluído para "${themeLabel}": lote ajustado para ${questions.length} de ${count} questões disponíveis exclusivamente neste assunto.`;
+      notice = `Acervo local concluído para "${themeLabel}": lote ajustado para ${questions.length} de ${count} questões disponíveis nesta matéria.`;
     }
 
-    const totalAvailable = await prisma.question.count({ where: strictWhere });
+    const availabilityWhere: Prisma.QuestionWhereInput = subjectName
+      ? { ...typeFilter, subjectName: { equals: subjectName, mode: 'insensitive' } }
+      : strictWhere;
+    const totalAvailable = await prisma.question.count({ where: availabilityWhere });
 
     return {
       questions,

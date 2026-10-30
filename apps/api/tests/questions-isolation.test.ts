@@ -84,7 +84,7 @@ describe('Isolamento Estrito de Matérias e Fallback no QuestionService (/api/qu
     }
   });
 
-  it('2. sem GEMINI_API_KEY: filtrar por topicId específico respeita estritamente matéria e assunto e ajusta o tamanho do lote', async () => {
+  it('2. sem GEMINI_API_KEY: filtrar por topicId específico prioriza o subtópico e completa o lote com outras questões do mesmo subjectName (sem cair para 1 e sem vazar outras matérias)', async () => {
     delete process.env.GEMINI_API_KEY;
 
     const subRes = await request(app)
@@ -112,12 +112,15 @@ describe('Isolamento Estrito de Matérias e Fallback no QuestionService (/api/qu
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.questions.length).toBe(1);
-    expect(res.body.actualCount).toBe(1);
+    expect(res.body.questions.length).toBeGreaterThan(1);
+    expect(res.body.questions.length).toBeLessThanOrEqual(5);
+    expect(res.body.actualCount).toBe(res.body.questions.length);
     expect(res.body.requestedCount).toBe(5);
-    expect(res.body.questions[0].subjectName).toBe('Direito Administrativo');
     expect(res.body.questions[0].topicName).toContain('Licitações');
-    expect(res.body.notice).toContain('Acervo local concluído');
+
+    for (const q of res.body.questions) {
+      expect(q.subjectName.toLowerCase()).toBe('direito administrativo');
+    }
   });
 
   it('3. com GEMINI_API_KEY configurada: solicita apenas a quantidade faltante (2 de 5) no tema exato, salva no Supabase com mesmo subjectName e retorna lote completo de 5', async () => {
@@ -245,5 +248,114 @@ describe('Isolamento Estrito de Matérias e Fallback no QuestionService (/api/qu
     for (const q of res.body.questions) {
       expect(q.subjectName).toBe(isolatedSubjectName);
     }
+    geminiFailSpy.mockRestore();
+  });
+
+  it('5. falha externa em subtópico com apenas 1 questão completa o lote até 5 com outras questões salvas do mesmo subjectName', async () => {
+    await prisma.question.create({
+      data: {
+        subjectName: isolatedSubjectName,
+        topicName: 'Atos Administrativos',
+        type: 'MULTIPLE_CHOICE',
+        difficulty: 'EASY',
+        source: 'Acervo Nativo',
+        statement: 'Questão única sobre atributos do Ato Administrativo',
+        explanation: 'Explicação sobre presunção de legitimidade',
+        options: {
+          create: [
+            { text: 'Correta', isCorrect: true },
+            { text: 'Incorreta', isCorrect: false },
+          ],
+        },
+      },
+    });
+
+    process.env.GEMINI_API_KEY = 'fake-gemini-key-for-test';
+    const subtopicFailSpy = vi
+      .spyOn(GeminiQuestionService, 'generateQuestions')
+      .mockRejectedValueOnce(new Error('Modelo indisponível'));
+
+    const res = await request(app)
+      .post('/api/questions/generate-batch')
+      .set('Cookie', sessionCookie)
+      .send({
+        subjectName: isolatedSubjectName,
+        topicName: 'Atos Administrativos',
+        format: 'MIXED',
+        count: 5,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.questions.length).toBe(5);
+    expect(res.body.questions[0].topicName).toBe('Atos Administrativos');
+    expect(res.body.providerSummary.fromCache).toBe(5);
+    expect(res.body.providerSummary.fromExternal).toBe(0);
+    for (const q of res.body.questions) {
+      expect(q.subjectName).toBe(isolatedSubjectName);
+    }
+
+    subtopicFailSpy.mockRestore();
+  });
+
+  it('6. GeminiQuestionService tenta gemini-3.8-flash primeiro e faz fallback em 404 para gemini-2.5-flash e gemini-flash-latest', async () => {
+    vi.restoreAllMocks();
+    process.env.GEMINI_API_KEY = 'fake-gemini-key-for-test';
+
+    const calledUrls: string[] = [];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const url = String(input);
+      calledUrls.push(url);
+
+      if (url.includes('models/gemini-3.8-flash:generateContent')) {
+        return new Response('Not Found 3.8', { status: 404 });
+      }
+      if (url.includes('models/gemini-2.5-flash:generateContent')) {
+        return new Response('Not Found 2.5', { status: 404 });
+      }
+      return new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify([
+                      {
+                        statement: 'Questão via fallback gemini-flash-latest',
+                        type: 'MULTIPLE_CHOICE',
+                        difficulty: 'MEDIUM',
+                        topicName: 'Licitações',
+                        explanation: 'Gabarito oficial.',
+                        options: [
+                          { text: 'Opção A', isCorrect: true },
+                          { text: 'Opção B', isCorrect: false },
+                        ],
+                      },
+                    ]),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+    const generated = await GeminiQuestionService.generateQuestions({
+      subjectName: isolatedSubjectName,
+      topicName: 'Licitações',
+      format: 'MIXED',
+      count: 1,
+    });
+
+    expect(calledUrls.length).toBe(3);
+    expect(calledUrls[0]).toContain('models/gemini-3.8-flash:generateContent');
+    expect(calledUrls[1]).toContain('models/gemini-2.5-flash:generateContent');
+    expect(calledUrls[2]).toContain('models/gemini-flash-latest:generateContent');
+    expect(generated.length).toBe(1);
+    expect(generated[0].statement).toContain('gemini-flash-latest');
+
+    fetchSpy.mockRestore();
   });
 });
