@@ -86,11 +86,17 @@ export class QuestionService {
     userId: string,
     params: QuestionBatchRequest
   ): Promise<QuestionBatchResponse> {
-    await this.ensureSeedLoaded();
-
+    const count = params.count || 5;
+    const format = params.format || 'MIXED';
     let resolvedTopicId: string | undefined;
     let subjectName = params.subjectName?.trim() || '';
     let topicName = params.topicName?.trim() || '';
+
+    console.log('[QuestionService] Requisição recebida:', { subjectName, topicName, count, format });
+    console.log('[QuestionService] GEMINI_API_KEY configurada?', Boolean(process.env.GEMINI_API_KEY));
+    console.log('[QuestionService] QUIZ_API_KEY configurada?', Boolean(process.env.QUIZ_API_KEY));
+
+    await this.ensureSeedLoaded();
 
     // Se veio topicId ou subjectId, valida propriedade do usuário e obtém os nomes exatos
     if (params.topicId) {
@@ -122,8 +128,6 @@ export class QuestionService {
       );
     }
 
-    const count = params.count || 5;
-    const format = params.format || 'MIXED';
     const typeFilter: Prisma.QuestionWhereInput = format !== 'MIXED' ? { type: format } : {};
 
     const isGenericTopic =
@@ -203,12 +207,20 @@ export class QuestionService {
       const targetSubject = subjectName || topicName;
       const targetTopic = !isGenericTopic ? topicName : '';
 
-      const fromGemini = await GeminiQuestionService.generateQuestions({
-        subjectName: targetSubject,
-        topicName: targetTopic,
-        format,
-        count: missingCount,
-      });
+      let fromGemini: Awaited<ReturnType<typeof GeminiQuestionService.generateQuestions>> = [];
+      try {
+        fromGemini = await GeminiQuestionService.generateQuestions({
+          subjectName: targetSubject,
+          topicName: targetTopic,
+          format,
+          count: missingCount,
+        });
+      } catch (err: any) {
+        console.error(
+          '[QuestionService] Falha na geração externa Gemini, retornando acervo local:',
+          err?.message || err
+        );
+      }
 
       for (const ext of fromGemini.slice(0, missingCount)) {
         try {

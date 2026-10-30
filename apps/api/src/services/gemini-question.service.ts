@@ -80,41 +80,50 @@ Regras:
 4. Todo o texto deve estar em Português do Brasil.`;
 
     try {
-      const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      const models = ['gemini-1.5-flash', 'gemini-2.0-flash'] as const;
       let responseData: any = null;
+      let lastHttpError = '';
 
       for (const model of models) {
-        try {
-          const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                  temperature: 0.3,
-                  topK: 40,
-                  topP: 0.95,
-                },
-              }),
-            }
-          );
+        const url =
+          model === 'gemini-1.5-flash'
+            ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+            : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-          if (res.ok) {
-            responseData = await res.json();
-            break;
-          }
-        } catch {
-          // Continua tentando próximo modelo
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.3,
+            },
+          }),
+        });
+
+        if (res.ok) {
+          responseData = await res.json();
+          break;
+        }
+
+        const errBody = await res.text();
+        lastHttpError = `Modelo ${model} retornou HTTP ${res.status}: ${errBody}`;
+        if (res.status !== 404) {
+          throw new Error(lastHttpError);
         }
       }
 
-      if (!responseData?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return [];
+      if (!responseData) {
+        throw new Error(lastHttpError || 'Resposta vazia da API Gemini.');
       }
 
-      let rawText = responseData.candidates[0].content.parts[0].text.trim();
+      const rawOutput = responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawOutput) {
+        throw new Error(`Resposta Gemini sem texto candidato: ${JSON.stringify(responseData)}`);
+      }
+
+      let rawText = rawOutput.trim();
       if (rawText.startsWith('```json')) {
         rawText = rawText.replace(/^```json/, '').replace(/```$/, '').trim();
       } else if (rawText.startsWith('```')) {
@@ -123,7 +132,7 @@ Regras:
 
       const parsed = JSON.parse(rawText);
       if (!Array.isArray(parsed)) {
-        return [];
+        throw new Error('Formato inesperado da resposta Gemini (esperado array JSON).');
       }
 
       const validItems: GeneratedQuestion[] = [];
@@ -181,9 +190,9 @@ Regras:
       }
 
       return validItems;
-    } catch (error) {
-      console.warn('[GeminiQuestionService] Erro ao gerar questões com Gemini:', error);
-      return [];
+    } catch (err: any) {
+      console.error('[GeminiQuestionService] Erro detalhado da API Gemini:', err?.message || err);
+      throw err;
     }
   }
 }

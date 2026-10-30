@@ -217,7 +217,7 @@ describe('Isolamento Estrito de Matérias e Fallback no QuestionService (/api/qu
     process.env.GEMINI_API_KEY = 'fake-gemini-key-for-test';
     const geminiFailSpy = vi
       .spyOn(GeminiQuestionService, 'generateQuestions')
-      .mockResolvedValueOnce([]);
+      .mockRejectedValueOnce(new Error('Gemini HTTP 429: Quota exceeded'));
 
     const res = await request(app)
       .post('/api/questions/generate-batch')
