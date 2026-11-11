@@ -51,6 +51,7 @@ export class AuthController {
       if (result.success) {
         res.cookie(SESSION_COOKIE_NAME, result.sessionId, getSessionCookieOptions());
         res.status(201).json({
+          token: result.sessionId,
           user: {
             id: result.user.id,
             name: result.user.name,
@@ -105,6 +106,7 @@ export class AuthController {
 
       res.cookie(SESSION_COOKIE_NAME, result.sessionId, getSessionCookieOptions());
       res.status(200).json({
+        token: result.sessionId,
         user: {
           id: result.user.id,
           name: result.user.name,
@@ -128,7 +130,9 @@ export class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+      const sessionId = req.cookies?.[SESSION_COOKIE_NAME] || bearerToken;
       authService.logout(sessionId);
 
       res.clearCookie(SESSION_COOKIE_NAME, {

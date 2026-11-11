@@ -23,6 +23,37 @@ export class ApiError extends Error {
 }
 
 export const AUTH_UNAUTHORIZED_EVENT = 'auth:unauthorized';
+const AUTH_TOKEN_KEY = 'catedra_session_token';
+let memoryAuthToken: string | null = null;
+
+export function getAuthToken(): string | null {
+  if (memoryAuthToken) return memoryAuthToken;
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage?.getItem(AUTH_TOKEN_KEY);
+    if (stored) {
+      memoryAuthToken = stored;
+      return stored;
+    }
+  } catch {
+    // Ignora bloqueios de storage no modo privado mobile
+  }
+  return null;
+}
+
+export function setAuthToken(token: string | null): void {
+  memoryAuthToken = token;
+  if (typeof window === 'undefined') return;
+  try {
+    if (token) {
+      window.localStorage?.setItem(AUTH_TOKEN_KEY, token);
+    } else {
+      window.localStorage?.removeItem(AUTH_TOKEN_KEY);
+    }
+  } catch {
+    // Ignora bloqueios de storage no modo privado mobile
+  }
+}
 
 function handleGlobalUnauthorized(url: string): void {
   if (typeof window === 'undefined') return;
@@ -32,6 +63,7 @@ function handleGlobalUnauthorized(url: string): void {
     return;
   }
 
+  setAuthToken(null);
   try {
     window.localStorage?.removeItem('user');
     window.sessionStorage?.removeItem('user');
@@ -91,6 +123,10 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
+  const usedToken = getAuthToken();
+  if (usedToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${usedToken}`);
+  }
 
   const response = await fetch(url, {
     ...options,
@@ -125,7 +161,10 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     }
 
     if (response.status === 401) {
-      handleGlobalUnauthorized(url);
+      const currentToken = getAuthToken();
+      if (!currentToken || currentToken === usedToken) {
+        handleGlobalUnauthorized(url);
+      }
     }
 
     throw new ApiError(errorMessage, response.status, errorCode, errorDetails);

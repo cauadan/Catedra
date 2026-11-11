@@ -287,5 +287,32 @@ describe('Testes de Integração: Autenticação e Segurança (@estudos/api)', (
       expect(response.status).toBe(401);
       expect(response.body.error.code).toBe('UNAUTHORIZED');
     });
+
+    it('deve autenticar e fazer logout via Authorization Bearer quando cookies de terceiros são bloqueados no mobile', async () => {
+      const loginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: testUser.email, password: testUser.password });
+
+      expect(loginRes.status).toBe(200);
+      expect(typeof loginRes.body.token).toBe('string');
+      expect(loginRes.body.token.length).toBeGreaterThan(10);
+
+      const meRes = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${loginRes.body.token}`);
+
+      expect(meRes.status).toBe(200);
+      expect(meRes.body.user.id).toBe(createdUserId);
+
+      const logoutRes = await request(app)
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${loginRes.body.token}`);
+      expect(logoutRes.status).toBe(200);
+
+      const afterLogout = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${loginRes.body.token}`);
+      expect(afterLogout.status).toBe(401);
+    });
   });
 });
