@@ -9,6 +9,17 @@ export type QuestionFormatDTO = (typeof QUESTION_FORMATS)[number];
 export const QUESTION_DIFFICULTIES = ['EASY', 'MEDIUM', 'HARD'] as const;
 export type QuestionDifficultyDTO = (typeof QUESTION_DIFFICULTIES)[number];
 
+export const QUESTION_SOURCE_MODES = [
+  'AUTO',
+  'AI_NEW',
+  'REVIEW_WRONG',
+  'REVIEW_CORRECT',
+  'REVIEW_ALL',
+] as const;
+export type QuestionSourceModeDTO = (typeof QUESTION_SOURCE_MODES)[number];
+
+export type QuestionAttemptStatusDTO = 'CORRECT' | 'WRONG' | null;
+
 export const QUESTION_TYPE_LABELS: Record<QuestionTypeDTO, string> = {
   MULTIPLE_CHOICE: 'Múltipla Escolha',
   TRUE_FALSE: 'Certo / Errado',
@@ -115,6 +126,7 @@ export const questionBatchRequestSchema = z.object({
   topicName: z.string().trim().optional(),
   format: z.enum(QUESTION_FORMATS).default('MIXED'),
   count: z.union([z.literal(5), z.literal(10)]).default(5),
+  mode: z.enum(QUESTION_SOURCE_MODES).default('AUTO'),
 });
 
 export type QuestionBatchRequest = z.infer<typeof questionBatchRequestSchema>;
@@ -147,6 +159,13 @@ export interface QuestionItemDTO {
   statement: string;
   codeSnippet: string | null;
   options: QuestionOptionDTO[];
+  lastAttemptStatus?: QuestionAttemptStatusDTO;
+}
+
+export interface SubjectQuestionHistoryDTO {
+  unanswered: number;
+  correct: number;
+  wrong: number;
 }
 
 export interface QuestionBatchResponse {
@@ -165,6 +184,7 @@ export interface QuestionBatchResponse {
 export interface QuestionAnswerResponse {
   isCorrect: boolean;
   correctOptionId: string | null;
+  correctOptionText?: string | null;
   explanation: string | null;
 }
 
@@ -175,4 +195,5 @@ export interface CatalogInfoResponse {
     geminiActive: boolean;
     quizApiActive: boolean;
   };
+  userHistory?: Record<string, SubjectQuestionHistoryDTO>;
 }

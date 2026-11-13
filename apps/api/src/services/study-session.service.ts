@@ -185,18 +185,6 @@ export class StudySessionService {
         );
       }
 
-      // Checar se existe sessão concluída sem avaliação
-      const pending = await tx.studySession.findFirst({
-        where: { user_id: userId, status: 'FINISHED', evaluation: null },
-      });
-      if (pending) {
-        throw new AppError(
-          409,
-          'PENDING_EVALUATION_EXISTS',
-          'Você tem uma sessão concluída aguardando avaliação.'
-        );
-      }
-
       const now = new Date();
       let sessionId = '';
 

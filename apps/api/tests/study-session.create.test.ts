@@ -234,9 +234,9 @@ describe('Study Session API: Creation and Queries (@estudos/api)', () => {
     expect(res.body.error.code).toBe('TOPIC_ARCHIVED');
   });
 
-  it('deve bloquear criação com 409 PENDING_EVALUATION_EXISTS se houver sessão FINISHED sem avaliação', async () => {
+  it('deve permitir criar nova sessão mesmo se houver sessão FINISHED sem avaliação', async () => {
     // Criar uma sessão FINISHED sem avaliação para user2
-    await prisma.studySession.create({
+    const finishedSession = await prisma.studySession.create({
       data: {
         user_id: user2.user.id,
         topic_id: user2.topic.id,
@@ -249,19 +249,6 @@ describe('Study Session API: Creation and Queries (@estudos/api)', () => {
       },
     });
 
-    // Tentativa de criar nova sessão
-    const res = await request(app)
-      .post('/api/study-sessions')
-      .set('Cookie', user2.cookie)
-      .send({
-        topic_id: user2.topic.id,
-        blocks: [{ kind: 'PRACTICE', planned_minutes: 30 }],
-      });
-
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('PENDING_EVALUATION_EXISTS');
-    expect(res.body.error.message).toBe('Você tem uma sessão concluída aguardando avaliação.');
-
     // GET /pending-evaluation deve retornar essa sessão com metrics
     const resPending = await request(app)
       .get('/api/study-sessions/pending-evaluation')
@@ -272,6 +259,22 @@ describe('Study Session API: Creation and Queries (@estudos/api)', () => {
     expect(resPending.body.data.status).toBe('FINISHED');
     expect(resPending.body.data.evaluation).toBeNull();
     expect(resPending.body.data.metrics).toBeDefined();
+
+    // Criação de nova sessão deve funcionar normalmente (201) sem bloquear o timer
+    const res = await request(app)
+      .post('/api/study-sessions')
+      .set('Cookie', user2.cookie)
+      .send({
+        topic_id: user2.topic.id,
+        blocks: [{ kind: 'PRACTICE', planned_minutes: 30 }],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe('IN_PROGRESS');
+
+    // Limpa a sessão ativa criada para não interferir nos testes seguintes
+    await prisma.studySession.delete({ where: { id: res.body.data.id } });
+    await prisma.studySession.delete({ where: { id: finishedSession.id } });
   });
 
   it('deve retornar 404 ao tentar acessar GET /:id de outro usuário', async () => {

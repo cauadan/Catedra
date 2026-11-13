@@ -274,22 +274,35 @@ export function Timer() {
             onCancelSession={handleCancelSessionClick}
             onUpdateBlocks={(blocks) => updateBlocksMutation.mutateAsync(blocks)}
           />
-        ) : pendingSession ? (
-          /* 2. Cenário: Nenhuma Sessão Ativa, mas Há Avaliação Pendente */
-          <PendingEvaluationBanner
-            onOpenEvaluation={() => {
-              setEvaluatingSession(pendingSession);
-              setEvaluationModalOpen(true);
-            }}
-          />
         ) : (
-          /* 3. Cenário: Livre — Formulário de Estudo Avulso */
-          <AdHocSessionForm
-            subjects={subjects}
-            topics={topics}
-            isPending={createAdHocMutation.isPending}
-            onSubmit={(payload) => createAdHocMutation.mutate(payload)}
-          />
+          /* 2. Cenário: Sem Sessão Ativa — exibe banner de avaliação pendente (se houver) + Cronômetro Avulso sempre liberado */
+          <div className="space-y-6">
+            {pendingSession && (
+              <PendingEvaluationBanner
+                onOpenEvaluation={() => {
+                  setEvaluatingSession(pendingSession);
+                  setEvaluationModalOpen(true);
+                }}
+              />
+            )}
+
+            {createAdHocMutation.isError && (
+              <div className="mx-auto max-w-2xl flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <span>
+                  {(createAdHocMutation.error as any)?.message ||
+                    'Não foi possível iniciar o cronômetro. Verifique se há matérias e assuntos cadastrados.'}
+                </span>
+              </div>
+            )}
+
+            <AdHocSessionForm
+              subjects={subjects}
+              topics={topics}
+              isPending={createAdHocMutation.isPending}
+              onSubmit={(payload) => createAdHocMutation.mutate(payload)}
+            />
+          </div>
         )}
       </div>
 
@@ -310,6 +323,10 @@ export function Timer() {
           session={evaluatingSession || pendingSession!}
           topics={topics}
           isPending={evaluateMutation.isPending}
+          onClose={() => {
+            setEvaluationModalOpen(false);
+            setEvaluatingSession(null);
+          }}
           onSubmit={async (payload) => {
             await evaluateMutation.mutateAsync(payload);
           }}

@@ -8,6 +8,7 @@ import {
   Calendar,
   AlertCircle,
   HelpCircle,
+  X,
 } from 'lucide-react';
 import {
   calculateAccuracy,
@@ -30,6 +31,7 @@ export interface SessionEvaluationModalProps {
   session: StudySessionView;
   topics: any[];
   isPending: boolean;
+  onClose?: () => void;
   onSubmit: (payload: SubmitEvaluationPayload) => Promise<void>;
   onFinishedSuccess: () => void;
 }
@@ -39,12 +41,13 @@ export function SessionEvaluationModal({
   session,
   topics,
   isPending,
+  onClose,
   onSubmit,
   onFinishedSuccess,
 }: SessionEvaluationModalProps) {
-  const activeTopics = useMemo(() => topics.filter((t) => !t.archived), [topics]);
+  const activeTopics = useMemo(() => (topics || []).filter((t) => !t.archived), [topics]);
 
-  const defaultTopicId = session.topic_id || activeTopics[0]?.id || '';
+  const defaultTopicId = session?.topic_id || activeTopics[0]?.id || '';
 
   const [understanding, setUnderstanding] = useState<UnderstandingLevelDTO>('GOOD');
   const [focus, setFocus] = useState<FocusLevelDTO>('HIGH');
@@ -58,7 +61,42 @@ export function SessionEvaluationModal({
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  if (!isOpen) return null;
+  // Cálculo consolidado de aproveitamento geral
+  const aggregateAccuracy = useMemo(() => {
+    return calculateAggregateAccuracy(practiceRows);
+  }, [practiceRows]);
+
+  // Métricas finais para tela de resumo
+  const finalMetrics = useMemo(() => {
+    if (!session) return null;
+    try {
+      const blocks: SessionBlockDTO[] = (session.session_blocks || []).map((b) => ({
+        id: b.id,
+        kind: b.kind,
+        planned_minutes: b.planned_minutes,
+        position: b.position,
+      }));
+      const events = toDomainEvents(session.session_events || []);
+      const rawEnd = (session as any).ended_at || session.finished_at;
+      return calculateSessionMetrics(
+        {
+          status: 'FINISHED',
+          started_at: new Date(session.started_at),
+          ended_at: rawEnd ? new Date(rawEnd) : new Date(),
+          planned_start: session.planned_session?.scheduled_start
+            ? new Date(session.planned_session.scheduled_start)
+            : null,
+        },
+        blocks,
+        events,
+        new Date()
+      );
+    } catch {
+      return null;
+    }
+  }, [session]);
+
+  if (!isOpen || !session) return null;
 
   const handleAddPracticeRow = () => {
     setPracticeRows((prev) => [
@@ -83,11 +121,6 @@ export function SessionEvaluationModal({
     });
   };
 
-  // Cálculo consolidado de aproveitamento geral
-  const aggregateAccuracy = useMemo(() => {
-    return calculateAggregateAccuracy(practiceRows);
-  }, [practiceRows]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -101,11 +134,11 @@ export function SessionEvaluationModal({
       }
     }
 
-    // Filtrar questões zeradas
+    // Filtrar questões zeradas e garantir topic_id válido
     const validPractice = practiceRows
-      .filter((r) => r.questions > 0)
+      .filter((r) => r.questions > 0 && Boolean(r.topic_id || defaultTopicId))
       .map((r) => ({
-        topic_id: r.topic_id,
+        topic_id: r.topic_id || defaultTopicId,
         questions: r.questions,
         correct: r.correct,
       }));
@@ -123,30 +156,6 @@ export function SessionEvaluationModal({
       setErrorMsg(err.message || 'Falha ao salvar a avaliação.');
     }
   };
-
-  // Métricas finais para tela de resumo
-  const finalMetrics = useMemo(() => {
-    const blocks: SessionBlockDTO[] = session.session_blocks.map((b) => ({
-      id: b.id,
-      kind: b.kind,
-      planned_minutes: b.planned_minutes,
-      position: b.position,
-    }));
-    const events = toDomainEvents(session.session_events);
-    return calculateSessionMetrics(
-      {
-        status: 'FINISHED',
-        started_at: new Date(session.started_at),
-        ended_at: session.finished_at ? new Date(session.finished_at) : new Date(),
-        planned_start: session.planned_session?.scheduled_start
-          ? new Date(session.planned_session.scheduled_start)
-          : null,
-      },
-      blocks,
-      events,
-      new Date()
-    );
-  }, [session]);
 
   return (
     <div className="fixed inset-0 z-50 !m-0 !mt-0 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/50 backdrop-blur-sm">
@@ -166,6 +175,16 @@ export function SessionEvaluationModal({
                   Assunto: <span className="font-semibold text-slate-700">{session.topic?.name || 'Geral'}</span>
                 </p>
               </div>
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                  title="Fechar e avaliar depois"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
             </div>
 
             {errorMsg && (

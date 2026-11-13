@@ -358,4 +358,101 @@ describe('Isolamento Estrito de Matérias e Fallback no QuestionService (/api/qu
 
     fetchSpy.mockRestore();
   });
+
+  it('7. classifica questões já feitas entre certas e erradas (REVIEW_WRONG, REVIEW_CORRECT, REVIEW_ALL) ou gera novas com IA (AI_NEW)', async () => {
+    const existing = await prisma.question.findMany({
+      where: { subjectName: isolatedSubjectName },
+      include: { options: true },
+      take: 2,
+    });
+    expect(existing.length).toBe(2);
+
+    const [q1, q2] = existing;
+    const q1CorrectOpt = q1.options.find((o) => o.isCorrect)!;
+    const q2WrongOpt = q2.options.find((o) => !o.isCorrect)!;
+
+    // Responde q1 correta e q2 errada
+    const ans1 = await request(app)
+      .post('/api/questions/answer')
+      .set('Cookie', sessionCookie)
+      .send({ questionId: q1.id, selectedOptionId: q1CorrectOpt.id })
+      .expect(200);
+    expect(ans1.body.isCorrect).toBe(true);
+    expect(ans1.body.correctOptionId).toBe(q1CorrectOpt.id);
+    expect(ans1.body.correctOptionText).toBe(q1CorrectOpt.text);
+    expect(ans1.body.explanation).toBeTruthy();
+
+    const ans2 = await request(app)
+      .post('/api/questions/answer')
+      .set('Cookie', sessionCookie)
+      .send({ questionId: q2.id, selectedOptionId: q2WrongOpt.id })
+      .expect(200);
+    expect(ans2.body.isCorrect).toBe(false);
+    expect(ans2.body.correctOptionId).toBeDefined();
+    expect(ans2.body.correctOptionText).toBeTruthy();
+    expect(ans2.body.explanation).toBeTruthy();
+
+    // Verifica classificação no catalog-info
+    const catRes = await request(app)
+      .get('/api/questions/catalog-info')
+      .set('Cookie', sessionCookie)
+      .expect(200);
+    const hist = catRes.body.userHistory[isolatedSubjectName.toLowerCase()];
+    expect(hist).toEqual({ unanswered: 4, correct: 1, wrong: 1 });
+
+    // REVIEW_WRONG traz apenas q2 marcada como WRONG
+    const wrongRes = await request(app)
+      .post('/api/questions/generate-batch')
+      .set('Cookie', sessionCookie)
+      .send({ subjectName: isolatedSubjectName, mode: 'REVIEW_WRONG', count: 5 })
+      .expect(200);
+    expect(wrongRes.body.questions.length).toBe(1);
+    expect(wrongRes.body.questions[0].id).toBe(q2.id);
+    expect(wrongRes.body.questions[0].lastAttemptStatus).toBe('WRONG');
+
+    // REVIEW_CORRECT traz apenas q1 marcada como CORRECT
+    const correctRes = await request(app)
+      .post('/api/questions/generate-batch')
+      .set('Cookie', sessionCookie)
+      .send({ subjectName: isolatedSubjectName, mode: 'REVIEW_CORRECT', count: 5 })
+      .expect(200);
+    expect(correctRes.body.questions.length).toBe(1);
+    expect(correctRes.body.questions[0].id).toBe(q1.id);
+    expect(correctRes.body.questions[0].lastAttemptStatus).toBe('CORRECT');
+
+    // AI_NEW aciona o Gemini mesmo havendo questões locais no banco
+    process.env.GEMINI_API_KEY = 'fake-gemini-key-for-test';
+    const aiNewSpy = vi.spyOn(GeminiQuestionService, 'generateQuestions').mockResolvedValueOnce([
+      {
+        subjectName: isolatedSubjectName,
+        topicName: 'Licitações',
+        type: 'TRUE_FALSE',
+        difficulty: 'EASY',
+        source: 'IA Simulado (Gemini)',
+        statement: 'Questão inédita forçada via AI_NEW',
+        codeSnippet: null,
+        explanation: 'Explicação AI_NEW',
+        options: [
+          { text: 'Certo', isCorrect: true },
+          { text: 'Errado', isCorrect: false },
+        ],
+      },
+    ]);
+
+    const aiRes = await request(app)
+      .post('/api/questions/generate-batch')
+      .set('Cookie', sessionCookie)
+      .send({ subjectName: isolatedSubjectName, mode: 'AI_NEW', count: 5 })
+      .expect(200);
+
+    expect(aiNewSpy).toHaveBeenCalledWith({
+      subjectName: isolatedSubjectName,
+      topicName: '',
+      format: 'MIXED',
+      count: 5,
+    });
+    expect(aiRes.body.providerSummary.fromExternal).toBe(1);
+    expect(aiRes.body.questions[0].statement).toBe('Questão inédita forçada via AI_NEW');
+    aiNewSpy.mockRestore();
+  });
 });

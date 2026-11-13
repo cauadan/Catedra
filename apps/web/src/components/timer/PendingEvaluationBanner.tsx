@@ -20,9 +20,9 @@ export function PendingEvaluationBanner({
               Avaliação Pós-Sessão Pendente
             </h3>
             <p className="mt-1 text-sm text-amber-800 leading-relaxed max-w-xl">
-              Você concluiu uma sessão de estudos que ainda não foi avaliada. Avalie sua
-              compreensão, foco e exercícios para consolidar suas estatísticas e liberar
-              o cronômetro para novos estudos.
+              Você concluiu uma sessão de estudos que ainda não foi avaliada. Você pode
+              avaliá-la agora para consolidar suas estatísticas ou iniciar um novo estudo
+              no cronômetro abaixo normalmente.
             </p>
           </div>
         </div>

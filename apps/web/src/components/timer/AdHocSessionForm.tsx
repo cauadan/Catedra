@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Play, Clock, Plus, Trash2, Sliders } from 'lucide-react';
 import {
   calculateBlockPreset,
@@ -44,6 +44,24 @@ export function AdHocSessionForm({
   const [selectedTopicId, setSelectedTopicId] = useState<string>(
     availableTopics[0]?.id || ''
   );
+
+  // Sincroniza matéria e assunto padrão quando as listas carregam da API
+  useEffect(() => {
+    if (!selectedSubjectId && activeSubjects.length > 0) {
+      setSelectedSubjectId(activeSubjects[0].id);
+    }
+  }, [activeSubjects, selectedSubjectId]);
+
+  useEffect(() => {
+    if (availableTopics.length > 0) {
+      const exists = availableTopics.some((t) => t.id === selectedTopicId);
+      if (!selectedTopicId || !exists) {
+        setSelectedTopicId(availableTopics[0].id);
+      }
+    } else if (selectedTopicId) {
+      setSelectedTopicId('');
+    }
+  }, [availableTopics, selectedTopicId]);
 
   const [stages, setStages] = useState<EditableStage[]>([
     { id: '1', kind: 'REVIEW', planned_minutes: 10 },

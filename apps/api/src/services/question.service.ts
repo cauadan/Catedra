@@ -59,20 +59,52 @@ export class QuestionService {
   }
 
   /**
-   * Retorna os tópicos e matérias cobertos nativamente pelo acervo
+   * Retorna os tópicos e matérias cobertos nativamente pelo acervo,
+   * o histórico de questões já feitas pelo usuário (certas/erradas/inéditas)
    * e o status das chaves de API opcionais.
    */
-  public static async getCatalogInfo(): Promise<CatalogInfoResponse> {
+  public static async getCatalogInfo(userId?: string): Promise<CatalogInfoResponse> {
     await this.ensureSeedLoaded();
-    const totalInBank = await prisma.question.count();
+    const allQuestions = await prisma.question.findMany({
+      select: { id: true, subjectName: true },
+    });
+
+    const userHistory: Record<string, { unanswered: number; correct: number; wrong: number }> = {};
+
+    if (userId) {
+      const attempts = await prisma.questionAttempt.findMany({
+        where: { userId },
+        orderBy: { answeredAt: 'asc' },
+        select: { questionId: true, isCorrect: true },
+      });
+      const latestByQuestion = new Map<string, boolean>();
+      for (const a of attempts) {
+        latestByQuestion.set(a.questionId, a.isCorrect);
+      }
+
+      for (const q of allQuestions) {
+        const key = q.subjectName.trim().toLowerCase();
+        if (!userHistory[key]) {
+          userHistory[key] = { unanswered: 0, correct: 0, wrong: 0 };
+        }
+        if (!latestByQuestion.has(q.id)) {
+          userHistory[key].unanswered++;
+        } else if (latestByQuestion.get(q.id)) {
+          userHistory[key].correct++;
+        } else {
+          userHistory[key].wrong++;
+        }
+      }
+    }
 
     return {
       catalog: NATIVE_CATALOG,
-      totalInBank,
+      totalInBank: allQuestions.length,
       integrations: {
         geminiActive: GeminiQuestionService.isConfigured(),
         quizApiActive: QuizApiQuestionService.isConfigured(),
       },
+      userHistory,
     };
   }
 
@@ -88,11 +120,12 @@ export class QuestionService {
   ): Promise<QuestionBatchResponse> {
     const count = params.count || 5;
     const format = params.format || 'MIXED';
+    const mode = params.mode || 'AUTO';
     let resolvedTopicId: string | undefined;
     let subjectName = params.subjectName?.trim() || '';
     let topicName = params.topicName?.trim() || '';
 
-    console.log('[QuestionService] Requisição recebida:', { subjectName, topicName, count, format });
+    console.log('[QuestionService] Requisição recebida:', { subjectName, topicName, count, format, mode });
     console.log('[QuestionService] GEMINI_API_KEY configurada?', Boolean(process.env.GEMINI_API_KEY));
     console.log('[QuestionService] QUIZ_API_KEY configurada?', Boolean(process.env.QUIZ_API_KEY));
 
@@ -172,33 +205,55 @@ export class QuestionService {
       },
     });
 
-    // Prioriza por histórico do usuário: 0 = Nunca respondidas > 1 = Erradas > 2 = Já acertadas
-    const prioritize = async (items: typeof candidateQuestions) => {
-      if (items.length === 0) return [];
+    const latestAttemptMap = new Map<string, boolean>();
+    const loadAttempts = async (items: typeof candidateQuestions) => {
+      if (items.length === 0) return;
       const attempts = await prisma.questionAttempt.findMany({
         where: { userId, questionId: { in: items.map((q) => q.id) } },
+        orderBy: { answeredAt: 'asc' },
         select: { questionId: true, isCorrect: true },
       });
-      const correctIds = new Set(attempts.filter((a) => a.isCorrect).map((a) => a.questionId));
-      const failedIds = new Set(
-        attempts.filter((a) => !a.isCorrect && !correctIds.has(a.questionId)).map((a) => a.questionId)
-      );
+      for (const a of attempts) {
+        latestAttemptMap.set(a.questionId, a.isCorrect);
+      }
+    };
+
+    await loadAttempts(candidateQuestions);
+
+    const shuffleAndSort = (
+      items: typeof candidateQuestions,
+      filterFn: (qId: string) => boolean
+    ) => {
       return items
+        .filter((q) => filterFn(q.id))
         .map((q) => ({
           question: q,
-          priority: correctIds.has(q.id) ? 2 : failedIds.has(q.id) ? 1 : 0,
+          priority: !latestAttemptMap.has(q.id) ? 0 : latestAttemptMap.get(q.id) ? 2 : 1,
           random: Math.random(),
         }))
         .sort((a, b) => a.priority - b.priority || a.random - b.random)
         .map((item) => item.question);
     };
 
-    const selectedFromDb = (await prioritize(candidateQuestions)).slice(0, count);
+    const isReviewMode =
+      mode === 'REVIEW_WRONG' || mode === 'REVIEW_CORRECT' || mode === 'REVIEW_ALL';
+
+    const matchesReviewMode = (qId: string) => {
+      if (mode === 'REVIEW_WRONG') return latestAttemptMap.get(qId) === false;
+      if (mode === 'REVIEW_CORRECT') return latestAttemptMap.get(qId) === true;
+      if (mode === 'REVIEW_ALL') return latestAttemptMap.has(qId);
+      return !latestAttemptMap.has(qId); // Em AUTO/AI_NEW, prioriza inéditas primeiro
+    };
+
+    const selectedFromDb: typeof candidateQuestions =
+      mode === 'AI_NEW'
+        ? []
+        : shuffleAndSort(candidateQuestions, matchesReviewMode).slice(0, count);
     let fromCache = selectedFromDb.length;
     let fromExternal = 0;
 
-    // 2. Se faltarem questões no banco local para atingir a quantidade solicitada
-    if (selectedFromDb.length < count && GeminiQuestionService.isConfigured()) {
+    // 2. Se faltarem questões inéditas (em AUTO ou AI_NEW) e o Gemini estiver ativo
+    if (!isReviewMode && selectedFromDb.length < count && GeminiQuestionService.isConfigured()) {
       const missingCount = count - selectedFromDb.length;
       const targetSubject = subjectName || topicName;
       const targetTopic = !isGenericTopic ? topicName : '';
@@ -249,23 +304,36 @@ export class QuestionService {
       }
     }
 
-    // 3. Se pediu subtópico específico e ainda faltam questões (falha/retorno parcial externo ou sem chave),
-    // completa o lote com outras questões salvas no Supabase do MESMO subjectName
-    if (selectedFromDb.length < count && subjectName && (!isGenericTopic || Boolean(resolvedTopicId))) {
-      const remaining = count - selectedFromDb.length;
-      const sameSubjectExtras = await prisma.question.findMany({
-        where: {
-          ...typeFilter,
-          subjectName: { equals: subjectName, mode: 'insensitive' },
-          ...(selectedFromDb.length > 0
-            ? { id: { notIn: selectedFromDb.map((q) => q.id) } }
-            : {}),
-        },
-        include: { options: true },
-      });
-      const prioritizedExtras = (await prioritize(sameSubjectExtras)).slice(0, remaining);
-      selectedFromDb.push(...prioritizedExtras);
-      fromCache += prioritizedExtras.length;
+    // 3. Fallback local dentro da mesma matéria caso ainda faltem questões para fechar o lote
+    if (selectedFromDb.length < count) {
+      let pool = [...candidateQuestions];
+      if (subjectName && (!isGenericTopic || Boolean(resolvedTopicId))) {
+        const sameSubjectExtras = await prisma.question.findMany({
+          where: {
+            ...typeFilter,
+            subjectName: { equals: subjectName, mode: 'insensitive' },
+          },
+          include: { options: true },
+        });
+        await loadAttempts(sameSubjectExtras);
+        const existingIds = new Set(pool.map((q) => q.id));
+        for (const extra of sameSubjectExtras) {
+          if (!existingIds.has(extra.id)) {
+            pool.push(extra);
+          }
+        }
+      }
+
+      const alreadyPicked = new Set(selectedFromDb.map((q) => q.id));
+      const remainingPool = pool.filter((q) => !alreadyPicked.has(q.id));
+
+      const fallbackFiltered = isReviewMode
+        ? shuffleAndSort(remainingPool, matchesReviewMode)
+        : shuffleAndSort(remainingPool, () => true);
+
+      const extras = fallbackFiltered.slice(0, count - selectedFromDb.length);
+      selectedFromDb.push(...extras);
+      fromCache += extras.length;
     }
 
     // Mapeia para DTO ocultando estritamente isCorrect nas opções para segurança
@@ -279,6 +347,11 @@ export class QuestionService {
       source: q.source,
       statement: q.statement,
       codeSnippet: q.codeSnippet,
+      lastAttemptStatus: !latestAttemptMap.has(q.id)
+        ? null
+        : latestAttemptMap.get(q.id)
+        ? 'CORRECT'
+        : 'WRONG',
       options: q.options.map((opt) => ({
         id: opt.id,
         text: opt.text,
@@ -292,7 +365,15 @@ export class QuestionService {
 
     let notice: string | null = null;
     if (questions.length === 0) {
-      notice = `Acervo local concluído para "${themeLabel}": nenhuma questão encontrada neste formato no banco local.`;
+      if (mode === 'REVIEW_WRONG') {
+        notice = `Nenhuma questão classificada como "Errada" foi encontrada anteriormente em "${themeLabel}".`;
+      } else if (mode === 'REVIEW_CORRECT') {
+        notice = `Nenhuma questão classificada como "Certa" foi encontrada anteriormente em "${themeLabel}".`;
+      } else if (mode === 'REVIEW_ALL') {
+        notice = `Você ainda não possui questões resolvidas anteriormente em "${themeLabel}".`;
+      } else {
+        notice = `Acervo local concluído para "${themeLabel}": nenhuma questão encontrada neste formato no banco local.`;
+      }
     } else if (questions.length < count) {
       notice = `Acervo local concluído para "${themeLabel}": lote ajustado para ${questions.length} de ${count} questões disponíveis nesta matéria.`;
     }
@@ -363,10 +444,40 @@ export class QuestionService {
 
     const correctOption = question.options.find((o) => o.isCorrect);
 
+    let explanation = question.explanation?.trim() || '';
+    const genericPlaceholders = [
+      'gabarito oficial.',
+      'gabarito oficial registrado no acervo.',
+      'alternativa correta indicada pela base técnica da quizapi.',
+    ];
+
+    if (!explanation || genericPlaceholders.includes(explanation.toLowerCase())) {
+      const generated =
+        correctOption && GeminiQuestionService.isConfigured()
+          ? await GeminiQuestionService.generateExplanation({
+              subjectName: question.subjectName,
+              topicName: question.topicName,
+              statement: question.statement,
+              correctOptionText: correctOption.text,
+              options: question.options.map((o) => o.text),
+            })
+          : null;
+
+      if (generated) {
+        explanation = generated;
+        await prisma.question
+          .update({ where: { id: question.id }, data: { explanation } })
+          .catch(() => {});
+      } else if (correctOption) {
+        explanation = `A resposta correta é "${correctOption.text}", pois atende diretamente ao conceito cobrado em ${question.topicName} (${question.subjectName}).`;
+      }
+    }
+
     return {
       isCorrect,
       correctOptionId: correctOption?.id || null,
-      explanation: question.explanation,
+      correctOptionText: correctOption?.text || null,
+      explanation,
     };
   }
 

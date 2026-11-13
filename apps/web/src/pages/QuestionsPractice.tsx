@@ -29,6 +29,7 @@ import {
   QUESTION_TYPE_LABELS,
   QUESTION_DIFFICULTY_LABELS,
   type QuestionFormatDTO,
+  type QuestionSourceModeDTO,
   type QuestionItemDTO,
   type QuestionBatchResponse,
   type QuestionAnswerResponse,
@@ -45,6 +46,7 @@ export function QuestionsPractice() {
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedFormat, setSelectedFormat] = useState<QuestionFormatDTO>('MIXED');
   const [questionCount, setQuestionCount] = useState<5 | 10>(5);
+  const [selectedMode, setSelectedMode] = useState<QuestionSourceModeDTO>('AUTO');
 
   // Estados da Sessão Ativa de Prática
   const [activeBatch, setActiveBatch] = useState<QuestionItemDTO[] | null>(null);
@@ -86,9 +88,13 @@ export function QuestionsPractice() {
       topicName: string;
       format: QuestionFormatDTO;
       count: 5 | 10;
+      mode: QuestionSourceModeDTO;
     }) => api.post<QuestionBatchResponse>('/api/questions/generate-batch', payload),
     onSuccess: (data) => {
       setBatchNotice(data.notice || null);
+      if (data.providerSummary?.fromExternal > 0) {
+        queryClient.invalidateQueries({ queryKey: ['questions', 'catalog-info'] });
+      }
       if (data.questions && data.questions.length > 0) {
         setActiveBatch(data.questions);
         setCurrentIndex(0);
@@ -116,6 +122,7 @@ export function QuestionsPractice() {
       if (data.isCorrect) {
         setUserScore((prev) => prev + 1);
       }
+      queryClient.invalidateQueries({ queryKey: ['questions', 'catalog-info'] });
     },
   });
 
@@ -141,12 +148,24 @@ export function QuestionsPractice() {
     },
   });
 
-  const handleStartBatch = () => {
+  const subjectHistory = catalogInfo?.userHistory?.[selectedSubject.trim().toLowerCase()] || {
+    unanswered: 0,
+    correct: 0,
+    wrong: 0,
+  };
+  const totalPreviouslyDone = subjectHistory.correct + subjectHistory.wrong;
+
+  const handleStartBatch = (overrideMode?: QuestionSourceModeDTO) => {
+    const activeMode = overrideMode || selectedMode;
+    if (overrideMode) {
+      setSelectedMode(overrideMode);
+    }
     generateBatchMutation.mutate({
       subjectName: selectedSubject,
       topicName: selectedTopic,
       format: selectedFormat,
       count: questionCount,
+      mode: activeMode,
     });
   };
 
@@ -442,6 +461,126 @@ export function QuestionsPractice() {
             </div>
           </div>
 
+          {/* Seletor de Origem: Questões já feitas (Erradas / Certas) ou Novas com I.A. */}
+          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Origem das Questões (Já Feitas vs. Novas com I.A.)
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Escolha entre reutilizar questões já feitas anteriormente (classificadas entre erradas e certas) ou gerar novas com a I.A.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                <span className="rounded-lg bg-sky-100 px-2 py-0.5 text-sky-800">
+                  Inéditas: {subjectHistory.unanswered}
+                </span>
+                <span className="rounded-lg bg-rose-100 px-2 py-0.5 text-rose-800">
+                  Já feitas (Erradas): {subjectHistory.wrong}
+                </span>
+                <span className="rounded-lg bg-emerald-100 px-2 py-0.5 text-emerald-800">
+                  Já feitas (Certas): {subjectHistory.correct}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMode('AUTO');
+                  setBatchNotice(null);
+                }}
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition-all ${
+                  selectedMode === 'AUTO'
+                    ? 'border-emerald-600 bg-emerald-600 text-white font-bold shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium'
+                }`}
+              >
+                <span className="block">Inéditas + I.A.</span>
+                <span className={`text-[10px] ${selectedMode === 'AUTO' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                  Padrão (Prioriza inéditas)
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMode('AI_NEW');
+                  setBatchNotice(null);
+                }}
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition-all ${
+                  selectedMode === 'AI_NEW'
+                    ? 'border-indigo-600 bg-indigo-600 text-white font-bold shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium'
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <Bot className="h-3.5 w-3.5" />
+                  Novas com I.A.
+                </span>
+                <span className={`text-[10px] ${selectedMode === 'AI_NEW' ? 'text-indigo-100' : 'text-slate-500'}`}>
+                  Gerar inéditas via Gemini
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMode('REVIEW_WRONG');
+                  setBatchNotice(null);
+                }}
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition-all ${
+                  selectedMode === 'REVIEW_WRONG'
+                    ? 'border-rose-600 bg-rose-600 text-white font-bold shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium'
+                }`}
+              >
+                <span className="block">Já Feitas: Erradas ({subjectHistory.wrong})</span>
+                <span className={`text-[10px] ${selectedMode === 'REVIEW_WRONG' ? 'text-rose-100' : 'text-slate-500'}`}>
+                  Refazer apenas erradas
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMode('REVIEW_CORRECT');
+                  setBatchNotice(null);
+                }}
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition-all ${
+                  selectedMode === 'REVIEW_CORRECT'
+                    ? 'border-emerald-600 bg-emerald-600 text-white font-bold shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium'
+                }`}
+              >
+                <span className="block">Já Feitas: Certas ({subjectHistory.correct})</span>
+                <span className={`text-[10px] ${selectedMode === 'REVIEW_CORRECT' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                  Revisar apenas certas
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMode('REVIEW_ALL');
+                  setBatchNotice(null);
+                }}
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition-all ${
+                  selectedMode === 'REVIEW_ALL'
+                    ? 'border-amber-600 bg-amber-600 text-white font-bold shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium'
+                }`}
+              >
+                <span className="block">Já Feitas: Todas ({totalPreviouslyDone})</span>
+                <span className={`text-[10px] ${selectedMode === 'REVIEW_ALL' ? 'text-amber-100' : 'text-slate-500'}`}>
+                  Erradas + Certas
+                </span>
+              </button>
+            </div>
+          </div>
+
           {batchNotice && (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs font-medium text-amber-900">
               {batchNotice}
@@ -451,7 +590,7 @@ export function QuestionsPractice() {
           <div className="mt-6 flex justify-end">
             <button
               type="button"
-              onClick={handleStartBatch}
+              onClick={() => handleStartBatch()}
               disabled={generateBatchMutation.isPending}
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
             >
@@ -527,6 +666,21 @@ export function QuestionsPractice() {
               >
                 {QUESTION_DIFFICULTY_LABELS[currentQuestion.difficulty]}
               </span>
+              {currentQuestion.lastAttemptStatus === 'WRONG' && (
+                <span className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700">
+                  Já feita: Errou anteriormente
+                </span>
+              )}
+              {currentQuestion.lastAttemptStatus === 'CORRECT' && (
+                <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                  Já feita: Acertou anteriormente
+                </span>
+              )}
+              {!currentQuestion.lastAttemptStatus && (
+                <span className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                  Inédita
+                </span>
+              )}
               <span className="ml-auto text-xs text-slate-500 font-medium">
                 Fonte: <strong className="text-slate-700">{currentQuestion.source}</strong>
               </span>
@@ -698,53 +852,88 @@ export function QuestionsPractice() {
               </div>
             )}
 
-            {/* Gabarito Comentado Instantâneo */}
-            {currentAnswer && (
-              <div className="rounded-xl border border-emerald-300 bg-emerald-50/50 p-4 space-y-2 mt-4 transition-all">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full text-white text-xs font-bold ${
-                      currentAnswer.isCorrect ? 'bg-emerald-600' : 'bg-rose-600'
-                    }`}
-                  >
-                    {currentAnswer.isCorrect ? '✓' : '✕'}
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900">
-                    {currentAnswer.isCorrect ? 'Resposta Correta!' : 'Resposta Incorreta.'}
-                  </h4>
-                </div>
+            {/* Gabarito Comentado Instantâneo e Explicação da Resposta Correta */}
+            {currentAnswer && (() => {
+              const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+              const correctIdx = currentQuestion.options.findIndex(
+                (o) => o.id === currentAnswer.correctOptionId
+              );
+              const correctOpt =
+                correctIdx >= 0 ? currentQuestion.options[correctIdx] : undefined;
+              const correctLabel =
+                currentQuestion.type === 'TRUE_FALSE'
+                  ? correctOpt?.text || currentAnswer.correctOptionText || ''
+                  : correctIdx >= 0
+                  ? `Alternativa ${letters[correctIdx] || correctIdx + 1}: ${correctOpt?.text}`
+                  : currentAnswer.correctOptionText || '';
 
-                <div className="pl-8 text-xs sm:text-sm text-slate-800 leading-relaxed">
-                  <p className="font-semibold text-emerald-950 mb-1 flex items-center gap-1">
-                    <BookOpen className="h-3.5 w-3.5 text-emerald-700" />
-                    Gabarito Comentado:
-                  </p>
-                  <p className="whitespace-pre-line text-slate-700">
-                    {currentAnswer.explanation || 'Gabarito oficial registrado no acervo.'}
-                  </p>
-                </div>
+              return (
+                <div
+                  className={`rounded-xl border p-4 space-y-3 mt-4 transition-all ${
+                    currentAnswer.isCorrect
+                      ? 'border-emerald-300 bg-emerald-50/50'
+                      : 'border-rose-300 bg-rose-50/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-white text-xs font-bold ${
+                        currentAnswer.isCorrect ? 'bg-emerald-600' : 'bg-rose-600'
+                      }`}
+                    >
+                      {currentAnswer.isCorrect ? '✓' : '✕'}
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      {currentAnswer.isCorrect
+                        ? 'Resposta Correta!'
+                        : 'Resposta Incorreta — Veja a resposta correta e a explicação abaixo:'}
+                    </h4>
+                  </div>
 
-                <div className="pt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleNextQuestion}
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors"
-                  >
-                    {currentIndex + 1 < activeBatch.length ? (
-                      <>
-                        Próxima Questão
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </>
-                    ) : (
-                      <>
-                        <Award className="h-4 w-4" />
-                        Ver Resumo do Treinamento
-                      </>
-                    )}
-                  </button>
+                  {correctLabel && (
+                    <div className="ml-8 rounded-lg border border-emerald-200 bg-white px-3.5 py-2.5 text-xs sm:text-sm shadow-sm">
+                      <span className="font-bold text-emerald-800 block uppercase tracking-wider text-[11px] mb-0.5">
+                        Resposta Correta:
+                      </span>
+                      <span className="font-semibold text-slate-900">{correctLabel}</span>
+                    </div>
+                  )}
+
+                  <div className="pl-8 text-xs sm:text-sm text-slate-800 leading-relaxed">
+                    <p className="font-bold text-emerald-950 mb-1 flex items-center gap-1.5">
+                      <BookOpen className="h-4 w-4 text-emerald-700" />
+                      Explicação da Resposta Correta:
+                    </p>
+                    <p className="whitespace-pre-line text-slate-700">
+                      {currentAnswer.explanation ||
+                        (correctLabel
+                          ? `A resposta correta é "${correctLabel}".`
+                          : 'Gabarito oficial registrado no acervo.')}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleNextQuestion}
+                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors"
+                    >
+                      {currentIndex + 1 < activeBatch.length ? (
+                        <>
+                          Próxima Questão
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          <Award className="h-4 w-4" />
+                          Ver Resumo do Treinamento
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}

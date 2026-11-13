@@ -10,7 +10,7 @@ export class QuestionController {
    */
   static async getCatalogInfo(req: Request, res: Response, next: NextFunction) {
     try {
-      const data = await QuestionService.getCatalogInfo();
+      const data = await QuestionService.getCatalogInfo(req.user?.id);
       return res.status(200).json(data);
     } catch (error) {
       if (error instanceof AppError) {

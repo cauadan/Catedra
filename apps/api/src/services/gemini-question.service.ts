@@ -196,4 +196,41 @@ Regras:
       throw err;
     }
   }
+
+  public static async generateExplanation(params: {
+    subjectName: string;
+    topicName: string;
+    statement: string;
+    correctOptionText: string;
+    options: string[];
+  }): Promise<string | null> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) return null;
+
+    const prompt = `Explique de forma objetiva e didática (em 2 a 4 frases, em Português do Brasil) por que a alternativa "${params.correctOptionText}" é a resposta correta para a questão abaixo de "${params.subjectName} - ${params.topicName}" e por que as demais estão incorretas.
+Enunciado: ${params.statement}
+Alternativas: ${params.options.join(' | ')}`;
+
+    const MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+    for (const model of MODELS) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2 },
+          }),
+        });
+        if (!res.ok) continue;
+        const data: any = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text) return text;
+      } catch {
+        // Ignora e tenta próximo modelo ou fallback local
+      }
+    }
+    return null;
+  }
 }
