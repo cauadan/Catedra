@@ -55,8 +55,6 @@ export function PlannedSessionModal({
   onClose,
   onSubmit,
 }: PlannedSessionModalProps) {
-  if (!isOpen) return null;
-
   // Filtrar apenas matérias e assuntos ativos (permitindo os atuais caso seja edição ou prefill)
   const activeSubjects = useMemo(() => {
     return subjects.filter(
@@ -175,6 +173,8 @@ export function PlannedSessionModal({
       applyPreset('BALANCED', plannedMinutes);
     }
   }, [initialSession, prefill?.stage]);
+
+  if (!isOpen) return null;
 
   function applyPreset(preset: BlockPreset, total: number) {
     setSelectedPreset(preset);

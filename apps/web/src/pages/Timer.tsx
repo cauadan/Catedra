@@ -317,7 +317,7 @@ export function Timer() {
       />
 
       {/* Modal de Avaliação Pós-Sessão */}
-      {(evaluatingSession || pendingSession) && (
+      {evaluationModalOpen && (evaluatingSession || pendingSession) && (
         <SessionEvaluationModal
           isOpen={evaluationModalOpen}
           session={evaluatingSession || pendingSession!}
